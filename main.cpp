@@ -1,12 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include "filter.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-#define STB_IMAGE_IMPLEMENTATION
+#include "filter.hpp"
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 using namespace std;
 
@@ -24,15 +21,13 @@ Pix operator%(const Pix &p, int d) { return {p.x % d, p.y % d}; }
 typedef vector<Pix> VP;
 typedef vector<VP> VVP;
 
-Pix* upsample(Pix* S, int W, int h, int m) {
-	Pix* res = (Pix*) malloc(W*W*4*sizeof(Pix));
+Pix* upsample(Pix* S, int W, int H, int h, int m) {
+	Pix* res = new Pix[W*H*4];
 	int W2 = W*2;
 	h = floor(h*0.5);
 	Pix ze = {m-h, m-h}, ri = {h, m-h}, up = {m-h, h}, di = {h, h};
-	// Pix ri = {h, 0}, up = {0, h}, di = {h, h};
 	for(int i = 0; i < W; i++) {
-		for(int j = 0; j < W; j++) {
-			// Pix u = 2 * S[i+W*j];
+		for(int j = 0; j < H; j++) {
 			Pix u = S[i+W*j];
 			int p = 2*(i + j*W2);
 			res[p] = (u + ze) % m;
@@ -50,29 +45,30 @@ unsigned int int_hash(unsigned int x) {
     x = (x >> 16) ^ x;
     return x;
 }
+
 Pix hp(int p) {
-	int a = abs((int) int_hash(p));
-	int b = abs((int) int_hash(a+p));
-	return {2*(a % 2) - 1, 2*(b % 2) - 1};
+	unsigned int a = int_hash(p);
+	unsigned int b = int_hash(a+p);
+	return {(int) ((b & 1) << 1) - 1, (int) ((b & 1) << 1) - 1};
 }
 
-void jitter(Pix* S, int W, int h, int m, double r) {
+void jitter(Pix* S, int W, int H, int h, int m, double r) {
 	double hr = h*r;
-	int W2 = W*W;
-	for(int i = 0; i < W2; i++) {
+	int size = W*H;
+	for(int i = 0; i < size; i++) {
 		Pix q = hp(i);
-		S[i] = (S[i] + Pix(floor(hr*q.x + 0.5), floor(hr*q.y + 0.5))) % m;
+		S[i] = (S[i] + Pix(m + floor(hr*q.x + 0.5), m + floor(hr*q.y + 0.5))) % m;
 	}
 }
 
-void getNeighb_S(int x, int y, int k, Pix* S, int W, uchar* E, int m, VI &N) {
+void getNeighb_S(int x, int y, int k, Pix* S, int W, int H, uchar* E, int m, VI &N) {
 	N.clear();
 	int dk = (k-1) / 2;
 	x += W;
-	y += W;
+	y += H;
 	for(int i = -dk; i <= dk; i++) {
 		for(int j = -dk; j <= dk; j++) {
-			int indS = ((x + i) % W) + ((y + j) % W) * W;
+			int indS = ((x + i) % W) + ((y + j) % H) * W;
 			Pix u = S[indS];
 			int indE = 3 * (u.x + u.y*m);
 			N.push_back(E[indE]);
@@ -103,23 +99,24 @@ int distNeighb(VI &a, VI &b, int k) {
 	return res;
 }
 
-void correct(Pix* S, int W, int h, int m, VVP &C, uchar* E, double kappa) {
+void correct(Pix* S, int W, int H, int h, int m, VVP &C, uchar* E, double kappa) {
 	VI NSp, NEu;
 	double phi2 = pow(1 + kappa, 2.0);
 	VP sps = {{0, 0}, {1, 1}, {0, 1}, {1, 0}, {1, 1}, {0, 0}, {0, 1}, {1, 0}};
 	for(Pix &sp : sps) {
 		#pragma omp parallel for private(NSp, NEu)
 		for(int px = sp.x; px < W; px += 2) {
-			for(int py = sp.y; py < W; py += 2) {
+			for(int py = sp.y; py < H; py += 2) {
 				int dis = 1e9;
 				Pix umin;
-				getNeighb_S(px, py, 5, S, W, E, m, NSp);
+				getNeighb_S(px, py, 5, S, W, H, E, m, NSp);
 				for(int i = -1; i <= 1; i++) {
 					for(int j = -1; j <= 1; j++) {
-						int dpx = (W+px+i) % W, dpy = (W+py+j) % W;
+						int dpx = (W+px+i) % W, dpy = (H+py+j) % H;
 						Pix du = (S[dpx+W*dpy] + Pix(m-h*i, m-h*j)) % m;
 						int du_ind = du.x + m*du.y;
-						for(int k = 0; k < C[du_ind].size(); k++) {
+						int c_size = C[du_ind].size();
+						for(int k = 0; k < c_size; k++) {
 							Pix cu = C[du_ind][k];
 							getNeighb(cu.x, cu.y, 5, E, m, NEu, h);
 							int d = distNeighb(NSp, NEu, 5);
@@ -137,25 +134,26 @@ void correct(Pix* S, int W, int h, int m, VVP &C, uchar* E, double kappa) {
 	}
 }
 
-void save(Pix* S, int ss, uchar* E, int W, int H, const char* name) {
-	int s2 = ss*ss;
-	uchar* res = (uchar*) malloc(s2*3);
-	for(int i = 0; i < s2; i++) {
-		int u = 3*(S[i].x + W*S[i].y);
+void save(Pix* S, int W, int H, uchar* E, int m, const char* name) {
+	int size = W*H;
+	uchar* res = new uchar[3*size];
+	for(int i = 0; i < size; i++) {
+		int u = 3*(S[i].x + m*S[i].y);
 		res[3*i] = E[u];
 		res[3*i+1] = E[u+1];
 		res[3*i+2] = E[u+2];
 	}
-	stbi_write_png(name, ss, ss, 3, res, 0);
-	delete res;
+	stbi_write_png(name, W, H, 3, res, 0);
+	delete[] res;
 }
-void saveS(Pix* S, int W, const char* name) {
-	int W2 = W*W;
-	uchar* res = (uchar*) calloc(W2*3, 1);
-	for(int i = 0; i < W2; i++)
+
+void saveS(Pix* S, int W, int H, const char* name) {
+	int size = W*H;
+	uchar* res = new uchar[3*size]();
+	for(int i = 0; i < size; i++)
 		res[3*i] = S[i].x, res[3*i+1] = S[i].y;
-	stbi_write_png(name, W, W, 3, res, 0);
-	delete res;
+	stbi_write_png(name, W, H, 3, res, 0);
+	delete[] res;
 }
 
 void appendCoherence(VVP &C, uchar* E, int m) {
@@ -215,32 +213,33 @@ void loadCoherence(VVP &C, const char* filename) {
 }
 
 void writeCoherence(VVP &C, int k, const char* filename, int m) {
-	uchar* coh = (uchar*) calloc(m*m*3, 1);
+	uchar* coh = new uchar[3*m*m]();
 	for(int i = 0; i < m*m; i++)
 		coh[3*i] = C[i][k].x, coh[3*i+1] = C[i][k].y;
 	stbi_write_png(filename, m, m, 3, coh, 0);
-	delete coh;
+	delete[] coh;
 }
 
-Pix* synthesize(int m, VD &r, int c, double kappa, uchar* E) {
-	Pix* S = (Pix*) malloc(4*sizeof(Pix));
-	uchar* El = (uchar*) malloc(3*m*m);
-	int L = log2(m);
-	S[0] = {0, 0};
-	S[1] = {0, 0};
-	S[2] = {0, 0};
-	S[3] = {0, 0};
-	int W = 2;
+Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H) {
+	Pix* S = new Pix[W*H];
+	uchar* El = new uchar[3*m*m];
+	int L = ceil(log2(m));
+	int r_size = r.size();
+	for(int i = 0; i < W*H; i++)
+		S[i] = {0, 0};
+	if(r_size > 0 && r[0] > 0)
+		jitter(S, W, H, m, m, r[0]);
 	char name[100];
 	for(int l = 1; l <= L; l++) {
 		int h = 1 << (L-l);
 		gauss(E, El, h, m, m);
-		Pix* nS = upsample(S, W, h, m);
-		delete S;
+		Pix* nS = upsample(S, W, H, h, m);
+		delete[] S;
 		S = nS;
-		W *= 2;	
-		if(l < r.size() && r[l] > 0)
-			jitter(S, W, h, m, r[l]);
+		W *= 2;
+		H *= 2;
+		if(l < r_size && r[l] > 0)
+			jitter(S, W, H, h, m, r[l]);
 		if(l > 2) {
 			VVP C;
 			initCoherence(C, m);
@@ -249,28 +248,37 @@ Pix* synthesize(int m, VD &r, int c, double kappa, uchar* E) {
 			// appendCoherence(C, El, m);		/* To compute coherence. May take a while */
 			// writeCoherence(C, 1, name, m);		/* To save coherence in a file */
 			for(int i = 0; i < c; i++)
-				correct(S, W, h, m, C, El, kappa);
+				correct(S, W, H, h, m, C, El, kappa);
 		}
 		sprintf(name, "out_%d.png", l);
-		save(S, W, El, m, m, name);
+		save(S, W, H, El, m, name);
 		sprintf(name, "map_%d.png", l);
-		saveS(S, W, name);
-		sprintf(name, "pyramid_%d.png", l);
-		stbi_write_png(name, m, m, 3, El, 0);
+		saveS(S, W, H, name);
 	}
-	delete El;
+	delete[] El;
 	return S;
 }
 
-int main() {
-	int W, H, col;
-	uchar* E = stbi_load("ims/1.png", &W, &H, &col, 3);
-	if (!E) {
-		std::cout<<"loading failed"<<std::endl;
+int main(int argc, char* argv[]) {
+	if(argc != 2) {
+		cerr << "This is a texture synthetiser." << endl;
+		cerr << "You can use it by typing:" << endl;
+		cerr << "\t" << argv[0] << " [filename]" << endl;
+		cerr << "Where:" << endl;
+		cerr << " -filename is the name of the image file used as an example" << endl;
 		return 1;
 	}
-	VD r = {0.2, 0.3, 0.6, 0.3, 0.4, 0.1, 0.1, 0.3};
-	Pix* S = synthesize(W, r, 2, 0.2, E);
-	delete E, S;
+	char* filename = argv[1];
+	int m, m2, col;
+	uchar* E = stbi_load(filename, &m, &m2, &col, 3);
+	if (!E) {
+		cerr << "loading failed" << endl;
+		return 1;
+	}
+	m = min(m, m2);
+	VD r = {0.2, 0.3, 0.5, 0.3, 0.3, 0.1, 0.1, 0.2};
+	Pix* S = synthesize(E, m, r, 3, 0.2, 3, 2);
+	delete E;
+	delete[] S;
 	return 0;
 }

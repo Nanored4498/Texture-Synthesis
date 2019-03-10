@@ -1,14 +1,10 @@
-#include <iostream>
 #include <math.h>
-#include <vector>
-#include <complex>
- 
-const double PI = 3.141592653589793238460;
+#include "filter.hpp"
 
-typedef unsigned char uchar;
-typedef std::complex<double> Complex;
-typedef std::vector<Complex> VC;
-typedef std::vector<VC> VVC;
+#define uchar unsigned char
+#define Complex std::complex<double>
+#define VC std::vector<Complex>
+#define VVC std::vector<VC>
 
 void average(uchar* in, uchar* out, int size, int W, int H) {
 	for(int i = 0; i < W; i++) {
@@ -38,7 +34,7 @@ void fft(VC& x) {
 	fft(even);
 	fft(odd);
 	for(int k = 0; k < N/2; k++) {
-    	Complex t = std::polar(1.0, -2 * PI * k / N) * odd[k];
+    	Complex t = std::polar(1.0, -2 * M_PI * k / N) * odd[k];
         x[k] = even[k] + t;
         x[k+N/2] = even[k] - t;
     }
@@ -77,8 +73,10 @@ void cols_to_rows(VVC &cols, VVC &rows, int W, int H) {
 void apply_filter_1D(VC &data, VC& filter) {
 	int N = data.size();
 	pad(data);
+	int N2 = data.size();
 	fft(data);
-	for(int i = 0; i < data.size(); i++) data[i] *= filter[i];
+	for(int i = 0; i < N2; i++)
+		data[i] *= filter[i];
 	ifft(data);
 	data.resize(N);
 }
@@ -106,7 +104,7 @@ void dgauss_filter(int N, VC &filter, double sigma) {
 	gauss_ifilter(N, filter, sigma);
 	N = filter.size();
 	double s = 0;
-	for(int i = 0; i < filter.size(); i++) {
+	for(int i = 0; i < N; i++) {
 		filter[i] *= - (i < N / 2 ? i : i - N) / sigma;
 		s += std::abs(filter[i]);
 	}
@@ -121,7 +119,6 @@ void rows_to_uchar(uchar* out, VVC rows, int W, int H, int c) {
 }
 
 void double_filter_1D(uchar* in, uchar* out, int W, int H, VC &filter_col, VC &filter_row) {
-	int ni = 0;
 	for(int i = 0; i < 3*W*H; i++) out[i] = in[i];
 	for(int c = 0; c < 3; c++) {
 		VVC cols, rows;
