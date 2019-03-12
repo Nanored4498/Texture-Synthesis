@@ -17,7 +17,9 @@ struct Pix {
 };
 Pix operator*(int a, const Pix &p) { return {a*p.x, a*p.y}; }
 Pix operator+(const Pix &a, const Pix &b) { return {a.x+b.x, a.y+b.y}; }
+Pix operator-(const Pix &a, const Pix &b) { return {a.x-b.x, a.y-b.y}; }
 Pix operator%(const Pix &p, int d) { return {p.x % d, p.y % d}; }
+Pix operator/(const Pix &p, int d) { return {p.x / d, p.y / d}; }
 typedef vector<Pix> VP;
 typedef vector<VP> VVP;
 
@@ -99,7 +101,7 @@ int distNeighb(VI &a, VI &b, int k) {
 	return res;
 }
 
-void correct(Pix* S, int W, int H, int h, int m, VVP &C, uchar* E, double kappa) {
+void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, double kappa) {
 	VI NSp, NEu;
 	double phi2 = pow(1 + kappa, 2.0);
 	VP sps = {{0, 0}, {1, 1}, {0, 1}, {1, 0}, {1, 1}, {0, 0}, {0, 1}, {1, 0}};
@@ -109,7 +111,7 @@ void correct(Pix* S, int W, int H, int h, int m, VVP &C, uchar* E, double kappa)
 			for(int py = sp.y; py < H; py += 2) {
 				int dis = 1e9;
 				Pix umin;
-				getNeighb_S(px, py, 5, S, W, H, E, m, NSp);
+				getNeighb_S(px, py, 5, S, W, H, E, m2, NSp);
 				for(int i = -1; i <= 1; i++) {
 					for(int j = -1; j <= 1; j++) {
 						int dpx = (W+px+i) % W, dpy = (H+py+j) % H;
@@ -118,7 +120,7 @@ void correct(Pix* S, int W, int H, int h, int m, VVP &C, uchar* E, double kappa)
 						int c_size = C[du_ind].size();
 						for(int k = 0; k < c_size; k++) {
 							Pix cu = C[du_ind][k];
-							getNeighb(cu.x, cu.y, 5, E, m, NEu, h);
+							getNeighb(cu.x, cu.y, 5, E, m2, NEu, h);
 							int d = distNeighb(NSp, NEu, 5);
 							if(k > 0) d *= phi2;
 							if(d < dis) {
@@ -147,21 +149,22 @@ void save(Pix* S, int W, int H, uchar* E, int m, const char* name) {
 	delete[] res;
 }
 
-void saveS(Pix* S, int W, int H, const char* name) {
+void saveS(Pix* S, int W, int H, int m, const char* name) {
 	int size = W*H;
+	double scale = 256.0 / m;
 	uchar* res = new uchar[3*size]();
 	for(int i = 0; i < size; i++)
-		res[3*i] = S[i].x, res[3*i+1] = S[i].y;
+		res[3*i] = scale*S[i].x, res[3*i+1] = scale*S[i].y;
 	stbi_write_png(name, W, H, 3, res, 0);
 	delete[] res;
 }
 
-void appendCoherence(VVP &C, uchar* E, int m) {
+void appendCoherence(VVP &C, uchar* E, int m, int h) {
 	vector<vector<VI>> Ns(m);
 	for(int x = 0; x < m; x++) {
 		Ns[x] = vector<VI>(m);
 		for(int y = 0; y < m; y++)
-			getNeighb(x, y, 7, E, m, Ns[x][y], 1);
+			getNeighb(x, y, min(7, m / h), E, m, Ns[x][y], h);
 	}
 	double md = pow(0.05*m, 2.0);
 	int i = 0;
@@ -220,9 +223,88 @@ void writeCoherence(VVP &C, int k, const char* filename, int m) {
 	delete[] coh;
 }
 
-Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H) {
+uchar* torrify(uchar* im, int m) {
+	int m2 = m << 1;
+	uchar* res = new uchar[4*m2*m2];
+	for(int c = 0; c < 3; c++) {
+		for(int x = 0; x < m; x++) {
+			for(int y = 0; y < m; y++) {
+				uchar v = im[3*(x+m*y)+c];
+				int x2 = m2-1-x, y2 = m2-1-y;
+				res[3*(x+m2*y)+c] = v;
+				res[3*(x+m2*y2)+c] = v;
+				res[3*(x2+m2*y)+c] = v;
+				res[3*(x2+m2*y2)+c] = v;
+			}
+		}
+	}
+	return res;
+}
+
+uchar* square(uchar* im, int W, int H) {
+	int m = min(W, H);
+	uchar* res = new uchar[3*m*m];
+	for(int c = 0; c < 3; c++)
+		for(int x = 0; x < m; x++)
+			for(int y = 0; y < m; y++)
+				res[3*(x+m*y)+c] = im[3*(x+W*y)+c];
+	return res;
+}
+
+uchar* downsample(uchar* im, int m, int p) {
+	uchar* g = new uchar[3*m*m];
+	int h = 1 << p;
+	gauss(im, g, h, m, m);
+	int m2 = m >> p;
+	uchar* res = new uchar[3*m2*m2];
+	for(int c = 0; c < 3; c++)
+		for(int x = 0; x < m2; x++)
+			for(int y = 0; y < m2; y++)
+				res[3*(x+m2*y)+c] = g[3*h*(x+m*y)+c];
+	delete[] g;
+	return res;
+}
+
+uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H) {
+	int mp = pow(2.0, ceil(log2(ml)));
+	int Wl = mp*W, Hl = mp*H;
+	int Wh = (mh*Wl) / ml, Hh = (mh*Hl) / ml;
+	uchar* res = new uchar[3*Wh*Hh];
+	double colors[2][2] = {{0, 0}, {0, 0}};
+	Pix u;
+	for(int c = 0; c < 3; c++) {
+		for(int x = 0; x < Wh; x++) {
+			for(int y = 0; y < Hh; y++) {
+				int xl = (x*ml) / mh, yl = (y*ml) / mh;
+				Pix dp = Pix(x*ml - xl*mh, y*ml - yl*mh);
+				double fx = (double) dp.x / (double) mh;
+				double fy = (double) dp.y / (double) mh;
+				dp = dp / ml;
+				for(int i = 0; i < 2; i++) {
+					for(int j = 0; j < 2; j++) {
+						if(xl+i >= Wl || yl+j >= Hl) colors[i][j] = colors[0][0];
+						else {
+							u = (mh * (S[xl+i + Wl*(yl+j)] - Pix(i, j))) / ml + dp;
+							colors[i][j] = Eh[3 * (max(0, u.x) + mh*max(0, u.y)) + c];
+						}
+					}
+				}
+				res[3*(x + Wh*y)+c] = (colors[0][0]*(1-fy)+colors[0][1]*fy) * (1-fx)
+									+ (colors[1][0]*(1-fy)+colors[1][1]*fy) * fx;
+			}
+		}
+	}
+	return res;
+}
+
+Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H, bool tor=false) {
 	Pix* S = new Pix[W*H];
 	uchar* El = new uchar[3*m*m];
+	uchar *tE = NULL, *tEl = NULL;
+	if(tor) {
+		tE = torrify(E, m);
+		tEl = new uchar[3*m*m*4];
+	}
 	int L = ceil(log2(m));
 	int r_size = r.size();
 	for(int i = 0; i < W*H; i++)
@@ -232,7 +314,16 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H) {
 	char name[100];
 	for(int l = 1; l <= L; l++) {
 		int h = 1 << (L-l);
-		gauss(E, El, h, m, m);
+		if(h == 1) {
+			delete[] El;
+			El = E;
+		} else gauss(E, El, h, m, m);
+		if(tor) {
+			if(h == 1) {
+				delete tEl;
+				tEl = tE;
+			} else gauss(tE, tEl, h, 2*m, 2*m);
+		}
 		Pix* nS = upsample(S, W, H, h, m);
 		delete[] S;
 		S = nS;
@@ -243,19 +334,19 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H) {
 		if(l > 2) {
 			VVP C;
 			initCoherence(C, m);
-			sprintf(name, "coherence_1_%d.png", l);
+			sprintf(name, "coherence_2_%d.png", l);
 			// loadCoherence(C, name);		/* if coherence has been pre_computed then load it */
-			// appendCoherence(C, El, m);		/* To compute coherence. May take a while */
+			// appendCoherence(C, El, m, h);		/* To compute coherence. May take a while */
 			// writeCoherence(C, 1, name, m);		/* To save coherence in a file */
 			for(int i = 0; i < c; i++)
-				correct(S, W, H, h, m, C, El, kappa);
+				correct(S, W, H, h, m, tor ? 2*m : m, C, tor ? tEl : El, kappa);
 		}
 		sprintf(name, "out_%d.png", l);
 		save(S, W, H, El, m, name);
 		sprintf(name, "map_%d.png", l);
-		saveS(S, W, H, name);
+		saveS(S, W, H, m, name);
 	}
-	delete[] El;
+	delete tE;
 	return S;
 }
 
@@ -275,10 +366,29 @@ int main(int argc, char* argv[]) {
 		cerr << "loading failed" << endl;
 		return 1;
 	}
-	m = min(m, m2);
-	VD r = {0.2, 0.3, 0.5, 0.3, 0.3, 0.1, 0.1, 0.2};
-	Pix* S = synthesize(E, m, r, 3, 0.2, 3, 2);
-	delete E;
+	bool sq = false;
+	if(m != m2) {
+		uchar* temp = square(E, m, m2);
+		m = min(m, m2);
+		free(E);
+		E = temp;
+		sq = true;
+	}
+	int W = 3, H = 2;
+	VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1};
+	uchar* d = downsample(E, m, 2);
+	int ml = m >> 2;
+	Pix* S = synthesize(d, ml, r, 3, 0.2, W, H, true);
+	uchar* Sh = magnify(ml, E, m, S, W, H);
+	stbi_write_png("example.png", m, m, 3, E, 0);
+	int mp = pow(2.0, ceil(log2(ml)));
+	int Wl = mp*W, Hl = mp*H;
+	int Wh = (m*Wl) / ml, Hh = (m*Hl) / ml;
+	stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
+	delete[] Sh;
+	delete[] d;
+	if(sq) delete[] E;
+	else free(E);
 	delete[] S;
 	return 0;
 }

@@ -1,0 +1,8 @@
+*.png
+*.pdf
+*.out
+.vscode
+ims
+main
+build
+debug
