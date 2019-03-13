@@ -1,6 +1,7 @@
 EXEC=main
 
 FLAGS=-Wall -O3 -fopenmp
+LINK=-lboost_filesystem -lboost_system
 
 BUILD_FOLDER=build
 SRC_C=$(wildcard *.c)
@@ -19,7 +20,7 @@ $(BUILD_FOLDER):
 	mkdir $(BUILD_FOLDER)
 
 $(EXEC): $(OBJ_C) $(OBJ_CPP)
-	g++ $(FLAGS) $^ -o $@
+	g++ $(FLAGS) $^ -o $@ $(LINK)
 
 $(BUILD_FOLDER)/%.o: %.c
 	gcc $(FLAGS) -c $< -o $@
@@ -38,7 +39,7 @@ $(DEBUG_FOLDER):
 	mkdir $(DEBUG_FOLDER)
 
 $(DEB): $(DEB_C) $(DEB_CPP)
-	g++ $(FLAGS) -g $^ -o $@
+	g++ $(FLAGS) -g $^ -o $@ $(LINK)
 
 $(DEBUG_FOLDER)/%.o: %.c
 	gcc $(FLAGS) -g -c $< -o $@

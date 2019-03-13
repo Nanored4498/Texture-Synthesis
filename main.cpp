@@ -1,9 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <string.h>
+#include <sys/stat.h>
 #include "filter.hpp"
 #include "stb_image.h"
 #include "stb_image_write.h"
+#include <boost/filesystem.hpp>
 
 using namespace std;
 
@@ -41,14 +44,14 @@ Pix* upsample(Pix* S, int W, int H, int h, int m) {
 	return res;
 }
 
-unsigned int int_hash(unsigned int x) {
+inline unsigned int int_hash(unsigned int x) {
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = (x >> 16) ^ x;
     return x;
 }
 
-Pix hp(int p) {
+inline Pix hp(int p) {
 	unsigned int a = int_hash(p);
 	unsigned int b = int_hash(a+p);
 	return {(int) ((b & 1) << 1) - 1, (int) ((b & 1) << 1) - 1};
@@ -93,7 +96,7 @@ void getNeighb(int x, int y, int k, uchar* E, int m, VI &N, int h) {
 	}
 }
 
-int distNeighb(VI &a, VI &b, int k) {
+inline int distNeighb(VI &a, VI &b, int k) {
 	int k2 = k*k*3;
 	int res = 0;
 	for(int i = 0; i < k2; i++)
@@ -159,43 +162,44 @@ void saveS(Pix* S, int W, int H, int m, const char* name) {
 	delete[] res;
 }
 
-void appendCoherence(VVP &C, uchar* E, int m, int h) {
+void appendCoherence(VVP &C, uchar* E, int m, int m2, int h) {
 	vector<vector<VI>> Ns(m);
+	int kn = min(7, m / h / 2);
 	for(int x = 0; x < m; x++) {
 		Ns[x] = vector<VI>(m);
 		for(int y = 0; y < m; y++)
-			getNeighb(x, y, min(7, m / h), E, m, Ns[x][y], h);
+			getNeighb(x, y, kn, E, m2, Ns[x][y], h);
 	}
 	double md = pow(0.05*m, 2.0);
 	int i = 0;
 	for(int y = 0; y < m; y++) {
+		#pragma omp parallel for
 		for(int x = 0; x < m; x++) {
 			VI Na = Ns[x][y];
 			Pix best;
 			int dist = 1e9;
-			#pragma omp parallel for
+			i = x+m*y;
 			for(int x2 = 0; x2 < m; x2++) {
 				for(int y2 = 0; y2 < m; y2++) {
 					bool cont = false;
 					for(Pix &p : C[i]) {
 						int dx = abs(p.x - x2), dy = abs(p.y - y2);
-						if(pow(min(dx, m-dx), 2) + pow(min(dy, m-dy), 2) < md) {
+						if(pow(min(dx, m2-dx), 2) + pow(min(dy, m2-dy), 2) < md) {
 							cont = true;
 							break;
 						}
 					}
 					if(cont) continue;
-					int d = distNeighb(Na, Ns[x2][y2], 7);
-					#pragma omp critical
+					int d = distNeighb(Na, Ns[x2][y2], kn);
 					if(d < dist) {
 						dist = d;
 						best = {x2, y2};
 					}
 				}
 			}
-			C[i++].push_back(best);
+			C[i].push_back(best);
 		}
-		cerr << "Coherence line: " << y << endl;
+		cerr << "Coherence line: " << y << "/" << m << endl;
 	}
 }
 
@@ -221,6 +225,14 @@ void writeCoherence(VVP &C, int k, const char* filename, int m) {
 		coh[3*i] = C[i][k].x, coh[3*i+1] = C[i][k].y;
 	stbi_write_png(filename, m, m, 3, coh, 0);
 	delete[] coh;
+}
+
+inline bool is_tor(uchar* im, int m) {
+	int d = 0;
+	for(int c = 0; c < 3; c++)
+	for(int i = 0; i < m; i++)
+		d += pow(im[3*i+c] - im[3*(i+m*(m-1))+c], 2) + pow(im[3*i*m+c] - im[3*(m-1+m*i)+c], 2);
+	return d < 1444 * 2 * m * 3;
 }
 
 uchar* torrify(uchar* im, int m) {
@@ -297,7 +309,9 @@ uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H) {
 	return res;
 }
 
-Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H, bool tor=false) {
+Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
+				bool tor=false, const char* file="", bool compute_co=false) {
+	// Initialization of images that will be used
 	Pix* S = new Pix[W*H];
 	uchar* El = new uchar[3*m*m];
 	uchar *tE = NULL, *tEl = NULL;
@@ -305,90 +319,152 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H, bool 
 		tE = torrify(E, m);
 		tEl = new uchar[3*m*m*4];
 	}
+
+	// Folder of coherence
+	bool have_folder = strcmp(file, "") != 0;
+	char folder[100];
+	char name[125];
+	if(have_folder) {
+		strcpy(folder, file);
+		folder[strlen(file)-4] = 0;
+	}
+
+	// Some variables
 	int L = ceil(log2(m));
 	int r_size = r.size();
+
+	// Creation of S_0
 	for(int i = 0; i < W*H; i++)
 		S[i] = {0, 0};
 	if(r_size > 0 && r[0] > 0)
 		jitter(S, W, H, m, m, r[0]);
-	char name[100];
+	
 	for(int l = 1; l <= L; l++) {
+		// footstep
 		int h = 1 << (L-l);
+
+		// Computation of gaussian stack
 		if(h == 1) {
 			delete[] El;
 			El = E;
 		} else gauss(E, El, h, m, m);
 		if(tor) {
 			if(h == 1) {
-				delete tEl;
+				delete[] tEl;
 				tEl = tE;
 			} else gauss(tE, tEl, h, 2*m, 2*m);
 		}
+
+		// Upsampling
 		Pix* nS = upsample(S, W, H, h, m);
 		delete[] S;
 		S = nS;
 		W *= 2;
 		H *= 2;
+
+		// Jitter
 		if(l < r_size && r[l] > 0)
 			jitter(S, W, H, h, m, r[l]);
+		
+		// Correction
 		if(l > 2) {
 			VVP C;
 			initCoherence(C, m);
-			sprintf(name, "coherence_2_%d.png", l);
-			// loadCoherence(C, name);		/* if coherence has been pre_computed then load it */
-			// appendCoherence(C, El, m, h);		/* To compute coherence. May take a while */
-			// writeCoherence(C, 1, name, m);		/* To save coherence in a file */
+			if(have_folder) {
+				sprintf(name, "%s/coherence_%d.png", folder, l);
+				struct stat buffer;
+				if(stat(name, &buffer) == 0) // Coherence already exists
+					loadCoherence(C, name);
+				else if(compute_co) { // Coherence does not exists and user want to create it
+					boost::filesystem::path dir(folder);
+					if(boost::filesystem::create_directory(folder))
+						cerr<< "Directory Created: " << folder << endl;
+					appendCoherence(C, tor ? tEl : El, m, tor ? 2*m : m, h);
+					writeCoherence(C, 1, name, m);
+				}
+			}
 			for(int i = 0; i < c; i++)
 				correct(S, W, H, h, m, tor ? 2*m : m, C, tor ? tEl : El, kappa);
 		}
+
+		// Saving images
 		sprintf(name, "out_%d.png", l);
 		save(S, W, H, El, m, name);
 		sprintf(name, "map_%d.png", l);
 		saveS(S, W, H, m, name);
 	}
-	delete tE;
+
+	delete[] tE;
 	return S;
 }
 
 int main(int argc, char* argv[]) {
-	if(argc != 2) {
+
+	// Parameters
+	int W = 3, H = 2;
+	VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1};
+	bool compute_co = false;
+
+	// Parsing
+	if(argc < 2) {
 		cerr << "This is a texture synthetiser." << endl;
 		cerr << "You can use it by typing:" << endl;
-		cerr << "\t" << argv[0] << " [filename]" << endl;
+		cerr << "\t" << argv[0] << " [filename] [-c]" << endl;
 		cerr << "Where:" << endl;
 		cerr << " -filename is the name of the image file used as an example" << endl;
+		cerr << " -c if this parameter is given then coherence is computed if it doesn't already exist" << endl;
 		return 1;
 	}
+	for(int i = 2; i < argc; i++) {
+		if(strcmp(argv[i], "-c") == 0) compute_co = true;
+	}
+
+	// Loading image
 	char* filename = argv[1];
-	int m, m2, col;
-	uchar* E = stbi_load(filename, &m, &m2, &col, 3);
+	int w, h, col;
+	uchar* E = stbi_load(filename, &w, &h, &col, 3);
 	if (!E) {
 		cerr << "loading failed" << endl;
 		return 1;
 	}
+
+	// Eventually resize to a square
 	bool sq = false;
-	if(m != m2) {
-		uchar* temp = square(E, m, m2);
-		m = min(m, m2);
+	int m = w;
+	if(w != h) {
+		uchar* temp = square(E, w, h);
+		m = min(w, h);
 		free(E);
 		E = temp;
 		sq = true;
 	}
-	int W = 3, H = 2;
-	VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1};
-	uchar* d = downsample(E, m, 2);
-	int ml = m >> 2;
-	Pix* S = synthesize(d, ml, r, 3, 0.2, W, H, true);
-	uchar* Sh = magnify(ml, E, m, S, W, H);
-	stbi_write_png("example.png", m, m, 3, E, 0);
-	int mp = pow(2.0, ceil(log2(ml)));
-	int Wl = mp*W, Hl = mp*H;
-	int Wh = (m*Wl) / ml, Hh = (m*Hl) / ml;
-	stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
-	delete[] Sh;
-	delete[] d;
+
+	// Check if the example is a tore
+	bool is_tore = is_tor(E, m);
+	if(is_tore)
+		cout << "The example has been considered as a tore" << endl;
+
+	// Check if we have to downsize example
+	if(m > 256) {
+		int ml = m;
+		int ds = 0;
+		while(ml > 256) ml >>= 1, ds++;
+		uchar* d = downsample(E, m, ds);
+		Pix* S = synthesize(d, ml, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+		uchar* Sh = magnify(ml, E, m, S, W, H);
+		int mp = pow(2.0, ceil(log2(ml)));
+		int Wl = mp*W, Hl = mp*H;
+		int Wh = (m*Wl) / ml, Hh = (m*Hl) / ml;
+		stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
+		delete[] S;
+		delete[] Sh;
+		delete[] d;
+	} else {
+		Pix* S = synthesize(E, m, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+		delete[] S;
+	}
+
 	if(sq) delete[] E;
 	else free(E);
-	delete[] S;
 	return 0;
 }
