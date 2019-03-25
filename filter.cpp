@@ -1,5 +1,5 @@
-#include <math.h>
 #include "filter.hpp"
+#include <cmath>
 
 #define uchar unsigned char
 #define Complex std::complex<double>

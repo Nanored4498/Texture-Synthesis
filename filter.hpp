@@ -1,5 +1,5 @@
-#ifndef DEF_FRACTION_H
-#define DEF_FRACTION_H
+#ifndef DEF_FILTER_H
+#define DEF_FILTER_H
 
 #include <vector>
 #include <complex>

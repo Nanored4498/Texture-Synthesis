@@ -4,8 +4,10 @@
 .vscode
 ims
 main
+gui
 build
 debug
 report/report.aux
 report/report.synctex.gz
 report/report.log
+launch.sh
