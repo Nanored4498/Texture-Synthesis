@@ -26,24 +26,27 @@ void average(uchar* in, uchar* out, int size, int W, int H) {
 void fft(VC& x) {
     int N = x.size();
     if(N <= 1) return;
-	VC even, odd;
-	for(int i = 0; i < N; i++) {
-		if(i % 2 == 0) even.push_back(x[i]);
-		else odd.push_back(x[i]);
+	int N2 = N >> 1;
+	VC even(N2), odd(N2);
+	for(int i = 0; i < N2; i++) {
+		even[i] = x[i<<1];
+		odd[i] = x[(i<<1)+1];
 	}
 	fft(even);
 	fft(odd);
-	for(int k = 0; k < N/2; k++) {
+	for(int k = 0; k < N2; k++) {
     	Complex t = std::polar(1.0, -2 * M_PI * k / N) * odd[k];
         x[k] = even[k] + t;
-        x[k+N/2] = even[k] - t;
+        x[k+N2] = even[k] - t;
     }
 }
 
 void ifft(VC& x) {
 	int N = x.size();
+	#pragma omp parallel for
 	for(int i = 0; i < N; i++) x[i] = std::conj(x[i]);
 	fft(x);
+	#pragma omp parallel for
 	for(int i = 0; i < N; i++) x[i] = std::conj(x[i]) / ((double) N);
 }
 
@@ -113,12 +116,14 @@ void dgauss_filter(int N, VC &filter, double sigma) {
 }
 
 void rows_to_uchar(uchar* out, VVC rows, int W, int H, int c) {
+	#pragma omp parallel for
 	for(int i = 0; i < W; i ++)
 		for(int j = 0; j < H; j++)
 			out[(i + j*W)*3 + c] = std::max(0.0, std::min(255.0, rows[j][i].real()));
 }
 
 void double_filter_1D(uchar* in, uchar* out, int W, int H, VC &filter_col, VC &filter_row) {
+	#pragma omp parallel for
 	for(int i = 0; i < 3*W*H; i++) out[i] = in[i];
 	for(int c = 0; c < 3; c++) {
 		VVC cols, rows;

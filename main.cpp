@@ -98,9 +98,11 @@ void getNeighb(int x, int y, int k, uchar* E, int m, VI &N, int h) {
 
 inline int distNeighb(VI &a, VI &b, int k) {
 	int k2 = k*k*3;
-	int res = 0;
-	for(int i = 0; i < k2; i++)
-		res += pow(a[i] - b[i], 2);
+	int res = 0, diff;
+	for(int i = 0; i < k2; i++) {
+		diff = a[i] - b[i];
+		res += diff * diff;
+	}
 	return res;
 }
 
@@ -165,12 +167,14 @@ void saveS(Pix* S, int W, int H, int m, const char* name) {
 void appendCoherence(VVP &C, uchar* E, int m, int m2, int h) {
 	vector<vector<VI>> Ns(m);
 	int kn = min(7, m / h / 2);
+	if(kn % 2 == 0) kn ++;
+	cout << "KN: " << kn << endl;
 	for(int x = 0; x < m; x++) {
 		Ns[x] = vector<VI>(m);
 		for(int y = 0; y < m; y++)
 			getNeighb(x, y, kn, E, m2, Ns[x][y], h);
 	}
-	double md = pow(0.05*m, 2.0);
+	double md = pow(0.35*m/kn, 2.0);
 	int i = 0;
 	for(int y = 0; y < m; y++) {
 		#pragma omp parallel for
@@ -193,7 +197,8 @@ void appendCoherence(VVP &C, uchar* E, int m, int m2, int h) {
 					int d = distNeighb(Na, Ns[x2][y2], kn);
 					if(d < dist) {
 						dist = d;
-						best = {x2, y2};
+						best.x = x2;
+						best.y = y2;
 					}
 				}
 			}
@@ -264,16 +269,26 @@ uchar* square(uchar* im, int W, int H) {
 }
 
 uchar* downsample(uchar* im, int m, int p) {
-	uchar* g = new uchar[3*m*m];
 	int h = 1 << p;
-	gauss(im, g, h, m, m);
 	int m2 = m >> p;
 	uchar* res = new uchar[3*m2*m2];
+	double* sum = new double[3*m2*m2];
+	for(int i = 0; i < 3*m2*m2; i++) sum[i]=0;
 	for(int c = 0; c < 3; c++)
 		for(int x = 0; x < m2; x++)
 			for(int y = 0; y < m2; y++)
-				res[3*(x+m2*y)+c] = g[3*h*(x+m*y)+c];
-	delete[] g;
+				for(int x2 = h*x; x2 < h*(x+1); x2 ++)
+					for(int y2 = h*y; y2 < h*(y+1); y2 ++)
+						sum[3*(x+m2*y)+c] += im[3*(x2+m*y2)+c];
+	for(int i = 0; i < 3*m2*m2; i++) res[i]=sum[i]/h/h;
+	delete[] sum;
+	// uchar* g = new uchar[3*m*m];
+	// gauss(im, g, h, m, m);
+	// for(int c = 0; c < 3; c++)
+	// 	for(int x = 0; x < m2; x++)
+	// 		for(int y = 0; y < m2; y++)
+	// 			res[3*(x+m2*y)+c] = ((int) g[3*h*(x+m*y)+c] + (int) g[3*(h*((x+1)+m*(y+1))-1-m)+c]) >> 1;
+	// delete[] g;
 	return res;
 }
 
@@ -309,16 +324,48 @@ uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H) {
 	return res;
 }
 
+const static double MEAN_FILTER[3][3] = {{0.05, 0.15, 0.05}, {0.15, 0.2, 0.15}, {0.05, 0.15, 0.05}};
+void save_smooth(Pix* S, int W, int H, uchar* E, int m, const char* name) {
+	int size = W*H;
+	uchar* res = new uchar[3*size];
+	for(int i = 0; i < size; i++) {
+		int x = i % W, y = i / W;
+		bool mean = (x > 0 && x < W-1 && y > 0 && y < H-1)
+				&& (abs(S[i].x - S[i-1].x) + abs(S[i].y - S[i-1].y) > 4
+					|| abs(S[i].x - S[i+1].x) + abs(S[i].y - S[i+1].y) > 4
+					|| abs(S[i].x - S[i-W].x) + abs(S[i].y - S[i-W].y) > 4
+					|| abs(S[i].x - S[i+W].x) + abs(S[i].y - S[i+W].y) > 4);
+		if(mean) {
+			for(int c = 0; c < 3; c++) {
+				double sum = 0;
+				for(int dx = -1; dx <= 1; dx ++) {
+					for(int dy = -1; dy <= 1; dy ++) {
+						int j = i + dx + W*dy;
+						int u = 3*(S[j].x + m*S[j].y);
+						sum += MEAN_FILTER[dx+1][dy+1] * E[u+c];
+					}
+				}
+				res[3*i+c] = sum;
+			}
+		} else {
+			int u = 3*(S[i].x + m*S[i].y);
+			res[3*i] = E[u];
+			res[3*i+1] = E[u+1];
+			res[3*i+2] = E[u+2];
+		}
+	}
+	stbi_write_png(name, W, H, 3, res, 0);
+	delete[] res;
+}
+
 Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 				bool tor=false, const char* file="", bool compute_co=false) {
 	// Initialization of images that will be used
 	Pix* S = new Pix[W*H];
-	uchar* El = new uchar[3*m*m];
-	uchar *tE = NULL, *tEl = NULL;
-	if(tor) {
-		tE = torrify(E, m);
-		tEl = new uchar[3*m*m*4];
-	}
+	int m2 = tor ? 2*m : m;
+	uchar* El = new uchar[3*m2*m2];
+	uchar *tE = NULL;
+	if(tor) tE = torrify(E, m);
 
 	// Folder of coherence
 	bool have_folder = strcmp(file, "") != 0;
@@ -346,14 +393,8 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 		// Computation of gaussian stack
 		if(h == 1) {
 			delete[] El;
-			El = E;
-		} else gauss(E, El, h, m, m);
-		if(tor) {
-			if(h == 1) {
-				delete[] tEl;
-				tEl = tE;
-			} else gauss(tE, tEl, h, 2*m, 2*m);
-		}
+			El = tor ? tE : E;
+		} else gauss(tor ? tE : E, El, h*0.7, m2, m2);
 
 		// Upsampling
 		Pix* nS = upsample(S, W, H, h, m);
@@ -379,19 +420,21 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 					boost::filesystem::path dir(folder);
 					if(boost::filesystem::create_directory(folder))
 						cerr<< "Directory Created: " << folder << endl;
-					appendCoherence(C, tor ? tEl : El, m, tor ? 2*m : m, h);
+					appendCoherence(C, El, m, m2, h);
 					writeCoherence(C, 1, name, m);
 				}
 			}
 			for(int i = 0; i < c; i++)
-				correct(S, W, H, h, m, tor ? 2*m : m, C, tor ? tEl : El, kappa);
+				correct(S, W, H, h, m, m2, C, El, kappa);
 		}
 
 		// Saving images
 		sprintf(name, "out_%d.png", l);
-		save(S, W, H, El, m, name);
+		save(S, W, H, El, m2, name);
 		sprintf(name, "map_%d.png", l);
 		saveS(S, W, H, m, name);
+		// sprintf(name, "El_%d.png", l);
+		// stbi_write_png(name, m2, m2, 3, El, 0);
 	}
 
 	delete[] tE;
@@ -461,6 +504,8 @@ int main(int argc, char* argv[]) {
 		delete[] d;
 	} else {
 		Pix* S = synthesize(E, m, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+		int L = 1 << (int) ceil(log2(m));
+		save_smooth(S, W*L, H*L, E, m, "magnific.png");
 		delete[] S;
 	}
 
