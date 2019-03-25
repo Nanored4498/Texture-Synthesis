@@ -62,4 +62,8 @@ $(DEBUG_FOLDER)/%.opp: %.cpp
 #CLEAN PART
 
 clean:
-	rm -r $(BUILD_FOLDER) $(DEBUG_FOLDER) $(IMS)
+	rm -rf $(BUILD_FOLDER) $(DEBUG_FOLDER)
+clean_im:
+	rm -f $(IMS)
+mr_proper: clean clean_im
+	rm -f $(GUI) $(EXEC)

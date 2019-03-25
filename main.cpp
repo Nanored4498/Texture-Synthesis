@@ -71,10 +71,8 @@ int main(int argc, char* argv[]) {
 		while(ml > 256) ml >>= 1, ds++;
 		uchar* d = downsample(E, m, ds);
 		Pix* S = synthesize(d, ml, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
-		uchar* Sh = magnify(ml, E, m, S, W, H);
-		int mp = pow(2.0, ceil(log2(ml)));
-		int Wl = mp*W, Hl = mp*H;
-		int Wh = (m*Wl) / ml, Hh = (m*Hl) / ml;
+		int Wh, Hh;
+		uchar* Sh = magnify(ml, E, m, S, W, H, Wh, Hh);
 		stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
 		delete[] S;
 		delete[] Sh;

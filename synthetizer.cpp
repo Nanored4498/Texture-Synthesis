@@ -203,10 +203,10 @@ uchar* downsample(uchar* im, int m, int p) {
 	return res;
 }
 
-uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H) {
+uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H, int &Wh, int &Hh) {
 	int mp = pow(2.0, ceil(log2(ml)));
 	int Wl = mp*W, Hl = mp*H;
-	int Wh = (mh*Wl) / ml, Hh = (mh*Hl) / ml;
+	Wh = (mh*Wl) / ml, Hh = (mh*Hl) / ml;
 	uchar* res = new uchar[3*Wh*Hh];
 	double colors[2][2] = {{0, 0}, {0, 0}};
 	Pix u;
