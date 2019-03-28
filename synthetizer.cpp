@@ -141,6 +141,7 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], 
 			S[0][i] = {0, 0};
 		if(r.size() > 0 && r[0] > 0)
 			jitter(S[0], W[0], H[0], m, m, r[0]);
+		save(S[0], W[0], H[0], E2, m2, "out.png");
 	} else {
 		char name[100];
 		// footstep

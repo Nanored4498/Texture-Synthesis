@@ -34,3 +34,15 @@ Here are two examples of images created by the algorithm :
 ![example1](ims/2.png) ![result1](ims/2/res.png)
 
 ![example1](ims/1.png) ![result1](ims/1/res.png)
+
+## GUI
+
+You can also use a GUI. There are some BUGs when the sample is big and generated files are big. To compile this GUI you have to run:
+```
+make g
+```
+Then to execute the GUI you have to run:
+```
+./gui <filename>
+```
+Where filename is name of the file you want to load. In the future you will be able to do that in the GUI.

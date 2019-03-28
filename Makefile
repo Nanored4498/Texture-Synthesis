@@ -17,7 +17,7 @@ DEB=$(DEBUG_FOLDER)/main
 DEB_C=$(patsubst %.c, $(DEBUG_FOLDER)/%.o, $(SRC_C))
 DEB_CPP=$(patsubst %.cpp, $(DEBUG_FOLDER)/%.opp, $(SRC_CPP))
 
-IMS=magnific.png map_*.png out_*.png
+IMS=magnific.png map_*.png out*.png
 
 all: $(BUILD_FOLDER) $(EXEC)
 

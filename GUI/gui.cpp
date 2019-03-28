@@ -1,14 +1,9 @@
-//#include <gtkmm/button.h>
-// #include <gtkmm/alignment.h>
-// #include <gtkmm/hvscale.h>
-// #include <gtkmm/hvbuttonbox.h>
-// #include <gtkmm/main.h>
-// #include <gtkmm/stock.h>
-// #include <gtkmm/window.h>
-// #include <gtkmm/action.h>
-// #include <gtkmm/hvbox.h>
-// #include <gtkmm/range.h>
-#include <gtkmm.h>
+#include <gtkmm/hvscale.h>
+#include <gtkmm/hvbuttonbox.h>
+#include <gtkmm/main.h>
+#include <gtkmm/stock.h>
+#include <gtkmm/window.h>
+#include <glibmm/thread.h>
 
 #include "../synthetizer.hpp"
 #include "../stb_image_write.h"
@@ -17,6 +12,8 @@
 #include <iostream>
 
 using namespace std;
+
+static int screen_width, screen_height;
 
 class ScalingImage : public Gtk::Image {
 public:
@@ -27,8 +24,8 @@ public:
 
 	void setPixbuf(Glib::RefPtr<Gdk::Pixbuf> pixbuf) {
 		m_original = pixbuf;
-		double scale =  min(get_pixbuf()->get_width() / double(m_original->get_width()),
-							get_pixbuf()->get_height() / double(m_original->get_height()));
+		double scale =  min(min((double) get_pixbuf()->get_width(), 0.8*screen_width) / double(m_original->get_width()),
+							min((double) get_pixbuf()->get_height(), 0.9*screen_height) / double(m_original->get_height()));
 		Glib::RefPtr<Gdk::Pixbuf> scaled =
 			m_original->scale_simple(max(1.0, scale*m_original->get_width()), max(1.0, scale*m_original->get_height()), m_interp);
 		Gtk::Image::set(scaled);
@@ -36,8 +33,8 @@ public:
 
 protected:
 	virtual void on_size_allocate(Gtk::Allocation & r) {
-		double scale =  min((r.get_width()-24) / double(m_original->get_width()),
-							(r.get_height()-24) / double(m_original->get_height()));
+		double scale =  min(min((double) r.get_width()-24, 0.8*screen_width) / double(m_original->get_width()),
+							min((double) r.get_height()-24, 0.9*screen_width) / double(m_original->get_height()));
 		Glib::RefPtr<Gdk::Pixbuf> scaled =
 			m_original->scale_simple(max(1.0, scale*m_original->get_width()), max(1.0, scale*m_original->get_height()), m_interp);
 		Gtk::Image::set(scaled);
@@ -54,13 +51,13 @@ static ScalingImage *image = NULL;
 static Gtk::HBox *hb;
 
 // Parameters
-static int W = 5, H = 3;
+static int W = 3, H = 2;
+// VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
 VD r = VD(9, 0);
 static int c = 3;
 static double kappa = 0.2;
-static bool compute_co = false;
 static bool to_tor = false;
-static char const *filename = "ims/2.png";
+static char *filename;
 static uchar *E, *Ed, *E2;
 static int m, md, m2;
 static double is_tore, new_E;
@@ -92,12 +89,14 @@ void update() {
 		} else
 			save_smooth(Ss[L], Ws[L], Hs[L], E, m, "out.png");
 		image->setPixbuf(Gdk::Pixbuf::create_from_file("out.png"));
-		l = -1;
-		return;
+		if(l > L) {
+			l = -1;
+			return;
+		} else update();
 	}
 	l ++;
-	synthesize_step(l-1, Ss, Ws, Hs, E2, El, m, m2,
-					r, L, have_folder, folder, compute_co, c, kappa);
+	synthesize_step(l-1, Ss, Ws, Hs, E2, El, md, m2,
+					r, L, have_folder, folder, false, c, kappa);
 	if(image != NULL)
 		image->setPixbuf(Gdk::Pixbuf::create_from_file("out.png"));
 	else {
@@ -117,14 +116,26 @@ void slider_fun(Gtk::HScale *slider, int i) {
 }
 
 int main(int argc, char* argv[]) {
+	struct stat buffer;
+	if(argc < 2 || stat(argv[1], &buffer) != 0) {
+		std::cerr << "Bad number of arguments or bad filename given in first argument\n" << std::endl;
+		std::cerr << "This is a texture synthetiser GUI." << std::endl;
+		std::cerr << "You can use it by typing: \t" << argv[0] << " <filename>" << std::endl;
+		std::cerr << "Where:" << std::endl;
+		std::cerr << "filename is the name of the image file used as an example" << std::endl;
+		return 1;
+	}
+	filename = argv[1];
 	Gtk::Main app(argc, argv);
 	Gtk::Window window;
 
 	window.set_title("Texture Synthesis");
-	struct stat buffer;
 	if(stat("ims/1.png", &buffer) == 0)
 		window.set_icon_from_file("ims/1.png");
 	window.set_default_size(600, 400);
+	Glib::RefPtr<Gdk::Screen> screen = Gdk::Screen::get_default();
+	screen_width = screen->get_width();
+	screen_height = screen->get_height();
 
 	hb = new Gtk::HBox(false, 0);
 	window.add(*hb);
@@ -139,7 +150,7 @@ int main(int argc, char* argv[]) {
 		sliders[i].signal_button_release_event().connect([slider, i](GdkEventButton *e) {
 			Glib::Thread::create([slider, i]() {
 				slider_fun(slider, i);
-			}, true);
+			}, false);
 			return false;
 		});
 	}
@@ -153,19 +164,9 @@ int main(int argc, char* argv[]) {
 					m2, E2, have_folder, folder, L);
 	init_live(W, H, E2, md, m2, L,
 				Ss, Ws, Hs, El);
-	Glib::Thread::create([]() {	update(); }, true);
+	Glib::Thread::create([]() {	update(); }, false);
 	
 	Gtk::Main::run(window);
 	clean();
 	return 0;
 }
-
-
-
-	// Gtk::Button but(Gtk::Stock::QUIT);
-	// window.add(but);
-	// but.show();
-	// but.signal_clicked().connect([]() { Gtk::Main::quit(); });
-
-	// Gtk::Alignment rt_al(Gtk::ALIGN_END, Gtk::ALIGN_START, 0, 0);
-	// window.add(rt_al);
