@@ -6,6 +6,8 @@
 #include <iostream>
 #include "filter.hpp"
 #include "coherence.hpp"
+#include "stb_image.h"
+#include "stb_image_write.h"
 
 
 /****************************/
@@ -99,31 +101,98 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 /*** Main Algorithm ***/
 /**********************/
 
-Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
-				bool tor, const char* file, bool compute_co) {
+void init_variables(uchar *E, int m, int W, int H, bool tor, const char* file,
+					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L) {
 	// Initialization of images that will be used
-	Pix* S = new Pix[W*H];
-	int m2 = tor ? 2*m : m;
-	uchar* El = new uchar[3*m2*m2];
-	uchar *E2 = tor ? torrify(E, m) : E;
-
+	m2 = tor ? 2*m : m;
+	E2 = tor ? torrify(E, m) : E;
 	// Folder of coherence
-	bool have_folder = strcmp(file, "") != 0;
-	char folder[100];
-	char name[125];
+	have_folder = strcmp(file, "") != 0;
 	if(have_folder) {
 		strcpy(folder, file);
 		folder[strlen(file)-4] = 0;
 	}
+	// Number of steps
+	L = ceil(log2(m));
+}
 
-	// Some variables
-	int L = ceil(log2(m));
-	int r_size = r.size();
+void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
+				Pix *S[], int W[], int H[], uchar* El[]) {
+	W[0] = W0;
+	H[0] = H0;
+	S[0] = new Pix[W0*H0];
+	for(int l = 1; l <= L; l++) {
+		int h = 1 << (L-l);
+		if(h == 1)
+			El[l] = E2;
+		else {
+			El[l] = new uchar[3*m2*m2];
+			gauss(E2, El[l], h, m2, m2);
+		}
+		W[l] = 2*W[l-1];
+		H[l] = 2*H[l-1];
+	}
+}
+
+void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int m, int m2,
+					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa) {
+	if(l == 0) { // Creation of S_0
+		for(int i = 0; i < W[0]*H[0]; i++)
+			S[0][i] = {0, 0};
+		if(r.size() > 0 && r[0] > 0)
+			jitter(S[0], W[0], H[0], m, m, r[0]);
+	} else {
+		char name[100];
+		// footstep
+		int h = 1 << (L-l);
+		// Upsampling
+		Pix* nS = upsample(S[l-1], W[l-1], H[l-1], h, m);
+		// Jitter
+		if(l < (int) r.size() && r[l] > 0)
+			jitter(nS, W[l], H[l], h, m, r[l]);
+		// Correction
+		if(l > 2) {
+			VVP C;
+			initCoherence(C, m);
+			if(have_folder) {
+				sprintf(name, "%s/coherence_%d.png", folder, l);
+				struct stat buffer;
+				if(stat(name, &buffer) == 0) // Coherence already exists
+					loadCoherence(C, name);
+				else if(compute_co) { // Coherence does not exists and user want to create it
+					boost::filesystem::path dir(folder);
+					if(boost::filesystem::create_directory(folder))
+						std::cerr << "Directory Created: " << folder << std::endl;
+					appendCoherence(C, El[l], m, m2, h);
+					writeCoherence(C, 1, name, m);
+				}
+			}
+			for(int i = 0; i < c; i++)
+				correct(nS, W[l], H[l], h, m, m2, C, El[l], kappa);
+		}
+		save(nS, W[l], H[l], El[l], m2, "out.png");
+		if(!S[l]) delete[] S[l];
+		S[l] = nS;
+	}
+}
+
+Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
+				bool tor, const char* file, bool compute_co) {
+	// Initialization of variables
+	Pix* S = new Pix[W*H];
+	int m2;
+	uchar *E2;
+	bool have_folder;
+	char folder[100], name[125];
+	int L;
+	init_variables(E, m, W, H, tor, file,
+					m2, E2, have_folder, folder, L);
+	uchar* El = new uchar[3*m2*m2];
 
 	// Creation of S_0
 	for(int i = 0; i < W*H; i++)
 		S[i] = {0, 0};
-	if(r_size > 0 && r[0] > 0)
+	if(r.size() > 0 && r[0] > 0)
 		jitter(S, W, H, m, m, r[0]);
 	
 	for(int l = 1; l <= L; l++) {
@@ -144,7 +213,7 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 		H *= 2;
 
 		// Jitter
-		if(l < r_size && r[l] > 0)
+		if(l < (int) r.size() && r[l] > 0)
 			jitter(S, W, H, h, m, r[l]);
 		
 		// Correction
@@ -184,7 +253,6 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 /**********************/
 /*** Magnification ***/
 /*********************/
-
 
 uchar* downsample(uchar* im, int m, int p) {
 	int h = 1 << p;
@@ -233,4 +301,52 @@ uchar* magnify(int ml, uchar* Eh, int mh, Pix* S, int W, int H, int &Wh, int &Hh
 		}
 	}
 	return res;
+}
+
+/***********************************/
+/*** Load Image and pretreatment ***/
+/***********************************/
+
+int load_image(const char* filename, double to_tor, uchar *&E, int &m, double &is_tore, double &new_E, uchar *&Ed, int &md) {
+	int w, h, col;
+	E = stbi_load(filename, &w, &h, &col, 3);
+	if (!E) {
+		std::cerr << "loading failed" << std::endl;
+		return 1;
+	}
+
+	// Eventually resize to a square
+	new_E = false;
+	m = w;
+	if(w != h) {
+		uchar* temp = square(E, w, h);
+		m = std::min(w, h);
+		free(E);
+		E = temp;
+		new_E = true;
+	}
+
+	// If the user want to torify image then torify the image
+	if(to_tor) {
+		uchar* tE = torrify(E, m);
+		if(new_E) delete[] E;
+		else free(E);
+		E = tE;
+		m *= 2;
+		new_E = true;
+	}
+
+	// Check if the example is a tore
+	is_tore = is_tor(E, m);
+	if(is_tore)
+		std::cerr << "The example has been considered as a tore" << std::endl;
+
+	// Downsizing
+	md = m;
+	if(m > 256) {
+		int ds = 0;
+		while(md > 256) md >>= 1, ds++;
+		Ed = downsample(E, m, ds);
+	} else Ed = E;
+	return 0;
 }

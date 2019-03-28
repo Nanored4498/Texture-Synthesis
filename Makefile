@@ -21,6 +21,8 @@ IMS=magnific.png map_*.png out_*.png
 
 all: $(BUILD_FOLDER) $(EXEC)
 
+g: $(BUILD_FOLDER) $(GUI)
+
 $(BUILD_FOLDER):
 	mkdir $(BUILD_FOLDER)
 

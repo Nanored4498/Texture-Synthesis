@@ -3,6 +3,13 @@
 
 #include "utils.hpp"
 
+void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
+				Pix *S[], int W[], int H[], uchar* El[]);
+void init_variables(uchar *E, int m, int W, int H, bool tor, const char* file,
+					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L);
+void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int m, int m2,
+					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa);
+
 // Algortihm for texture syntesis
 // Return a map to the pixel of E
 Pix* synthesize(
@@ -32,5 +39,7 @@ uchar* magnify(
 	int &Wh,	// The new width will be stored in this integer
 	int &Hh		// The new height will be stored in this integer
 );
+
+int load_image(const char* filename, double to_tor,  uchar *&E, int &m, double &is_tore, double &new_E, uchar *&Ed, int &md);
 
 #endif

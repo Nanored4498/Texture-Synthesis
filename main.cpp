@@ -7,7 +7,6 @@
 #include "synthetizer.hpp"
 
 int main(int argc, char* argv[]) {
-
 	// Parameters
 	int W = 3, H = 2;
 	VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1};
@@ -29,54 +28,23 @@ int main(int argc, char* argv[]) {
 		if(strcmp(argv[i], "-c") == 0) compute_co = true;
 		else if(strcmp(argv[i], "-t") == 0) to_tor = true;
 	}
-
-	// Loading image
 	char* filename = argv[1];
-	int w, h, col;
-	uchar* E = stbi_load(filename, &w, &h, &col, 3);
-	if (!E) {
-		std::cerr << "loading failed" << std::endl;
+
+	uchar *E=0, *Ed=0;
+	int m, md;
+	double is_tore, new_E;
+	if(load_image(filename, to_tor, E, m, is_tore, new_E, Ed, md))
 		return 1;
-	}
-
-	// Eventually resize to a square
-	bool new_E = false;
-	int m = w;
-	if(w != h) {
-		uchar* temp = square(E, w, h);
-		m = std::min(w, h);
-		free(E);
-		E = temp;
-		new_E = true;
-	}
-
-	// If the user want to torify image then torify the image
-	if(to_tor) {
-		uchar* tE = torrify(E, m);
-		if(new_E) delete[] E;
-		else free(E);
-		E = tE;
-		m *= 2;
-	}
-
-	// Check if the example is a tore
-	bool is_tore = is_tor(E, m);
-	if(is_tore)
-		std::cerr << "The example has been considered as a tore" << std::endl;
 
 	// Check if we have to downsize example
-	if(m > 256) {
-		int ml = m;
-		int ds = 0;
-		while(ml > 256) ml >>= 1, ds++;
-		uchar* d = downsample(E, m, ds);
-		Pix* S = synthesize(d, ml, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+	if(md < m) {
+		Pix* S = synthesize(Ed, md, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
 		int Wh, Hh;
-		uchar* Sh = magnify(ml, E, m, S, W, H, Wh, Hh);
+		uchar* Sh = magnify(md, E, m, S, W, H, Wh, Hh);
 		stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
 		delete[] S;
 		delete[] Sh;
-		delete[] d;
+		delete[] Ed;
 	} else {
 		Pix* S = synthesize(E, m, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
 		int L = 1 << (int) ceil(log2(m));
