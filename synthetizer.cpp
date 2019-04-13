@@ -101,7 +101,7 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 /*** Main Algorithm ***/
 /**********************/
 
-void init_variables(uchar *E, int m, int W, int H, bool tor, const char* file,
+void init_variables(uchar *E, int m, bool tor, const char* file,
 					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L) {
 	// Initialization of images that will be used
 	m2 = tor ? 2*m : m;
@@ -114,6 +114,17 @@ void init_variables(uchar *E, int m, int W, int H, bool tor, const char* file,
 	}
 	// Number of steps
 	L = ceil(log2(m));
+}
+
+void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]) {
+	W[0] = W0;
+	H[0] = H0;
+	if(!S[0]) delete[] S[0];
+	S[0] = new Pix[W0*H0];
+	for(int l = 1; l <= L; l++) {
+		W[l] = 2*W[l-1];
+		H[l] = 2*H[l-1];
+	}
 }
 
 void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
@@ -186,7 +197,7 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 	bool have_folder;
 	char folder[100], name[125];
 	int L;
-	init_variables(E, m, W, H, tor, file,
+	init_variables(E, m, tor, file,
 					m2, E2, have_folder, folder, L);
 	uchar* El = new uchar[3*m2*m2];
 

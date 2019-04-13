@@ -1,8 +1,10 @@
 #include <gtkmm/hvscale.h>
 #include <gtkmm/hvbuttonbox.h>
+#include <gtkmm/label.h>
 #include <gtkmm/main.h>
 #include <gtkmm/stock.h>
 #include <gtkmm/window.h>
+
 #include <glibmm/thread.h>
 #include <glibmm/fileutils.h>
 
@@ -118,12 +120,30 @@ void update() {
 	update();
 }
 
-void slider_fun(Gtk::HScale *slider, int i) {
+void jitter_fun(Gtk::HScale *slider, int i) {
 	r[i] = slider->get_value();
 	if(l == -1) {
 		l = i;
 		update();
 	} else if(i < l) l = i;
+}
+
+void dim_fun(int W0, int H0) {
+	if(W0 > 0) W = W0;
+	if(H0 > 0) H = H0;
+	init_live_WH(L, W, H, Ss, Ws, Hs);
+	if(l == -1) {
+		l = 0;
+		update();
+	} else l = 0;
+}
+
+void c_fun(int c0) {
+	c = c0;
+	if(l == -1) {
+		l = 0;
+		update();
+	} else l = 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -153,6 +173,46 @@ int main(int argc, char* argv[]) {
 	Gtk::VButtonBox box(Gtk::BUTTONBOX_SPREAD);
 	hb->pack_end(box);
 
+	Gtk::VBox Wbox(false, 0);
+	Gtk::Label Wlab("W");
+	Wbox.pack_start(Wlab);
+	Gtk::HScale Wslider(1, 6, 1);
+	Wslider.set_value(W);
+	Wslider.signal_button_release_event().connect([&Wslider](GdkEventButton *e) {
+		int W0 = Wslider.get_value();
+		Glib::Thread::create([W0]() { dim_fun(W0, 0); }, false);
+		return false;
+	});
+	Wbox.pack_start(Wslider);
+	box.pack_start(Wbox);
+
+	Gtk::VBox Hbox(false, 0);
+	Gtk::Label Hlab("H");
+	Hbox.pack_start(Hlab);
+	Gtk::HScale Hslider(1, 6, 1);
+	Hslider.set_value(H);
+	Hslider.signal_button_release_event().connect([&Hslider](GdkEventButton *e) {
+		int H0 = Hslider.get_value();
+		Glib::Thread::create([H0]() { dim_fun(0, H0); }, false);
+		return false;
+	});
+	Hbox.pack_start(Hslider);
+	box.pack_start(Hbox);
+
+	Gtk::VBox Cbox(false, 0);
+	Gtk::Label Clab("Number of corrections");
+	Cbox.pack_start(Clab);
+	Gtk::HScale Cslider(0, 5, 1);
+	Cslider.set_value(c);
+	Cslider.signal_button_release_event().connect([&Cslider](GdkEventButton *e) {
+		c_fun(Cslider.get_value());
+		return false;
+	});
+	Cbox.pack_start(Cslider);
+	box.pack_start(Cbox);
+
+	Gtk::Label jitter_lab("Jitter");
+	box.pack_start(jitter_lab);
 	Gtk::HScale sliders[9];
 	for(int i = 0; i < 9; i++) {
 		sliders[i] = Gtk::HScale(0.0, 1.01, 0.01);
@@ -160,7 +220,7 @@ int main(int argc, char* argv[]) {
 		Gtk::HScale *slider = sliders+i;
 		sliders[i].signal_button_release_event().connect([slider, i](GdkEventButton *e) {
 			Glib::Thread::create([slider, i]() {
-				slider_fun(slider, i);
+				jitter_fun(slider, i);
 			}, false);
 			return false;
 		});
@@ -171,7 +231,7 @@ int main(int argc, char* argv[]) {
 	// Initialisation
 	if(load_image(filename, to_tor, E, m, is_tore, new_E, Ed, md))
 		return 1;
-	init_variables(Ed, md, W, H, !is_tore, filename,
+	init_variables(Ed, md, !is_tore, filename,
 					m2, E2, have_folder, folder, L);
 	init_live(W, H, E2, md, m2, L,
 				Ss, Ws, Hs, El);
