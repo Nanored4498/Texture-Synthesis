@@ -1,6 +1,7 @@
 #include <gtkmm/hvscale.h>
 #include <gtkmm/hvbuttonbox.h>
 #include <gtkmm/label.h>
+#include <gtkmm/button.h>
 #include <gtkmm/main.h>
 #include <gtkmm/stock.h>
 #include <gtkmm/window.h>
@@ -81,6 +82,7 @@ static Pix *Ss[9];
 static int Ws[9], Hs[9];
 static uchar *El[9];
 static int l = 0, L;
+static bool saveE = true;
 
 void clean() {
 	if(new_E) delete[] E;
@@ -95,6 +97,10 @@ void clean() {
 
 void update() {
 	if(l > L) {
+		if(!saveE) {
+			l = -1;
+			return;
+		}
 		if(md < m) {
 			int Wh, Hh;
 			uchar* Sh = magnify(md, E, m, Ss[L], W, H, Wh, Hh);
@@ -109,7 +115,7 @@ void update() {
 	}
 	l ++;
 	synthesize_step(l-1, Ss, Ws, Hs, E2, El, md, m2,
-					r, L, have_folder, folder, false, c, kappa);
+					r, L, have_folder, folder, false, c, kappa, saveE);
 	if(image != NULL) {
 		image->setPixbuf("out.png");
 	} else {
@@ -146,6 +152,14 @@ void c_fun(int c0) {
 	} else l = 0;
 }
 
+void saveE_fun() {
+	saveE = !saveE;
+	if(l == -1) {
+		l = L;
+		update();
+	} else l = std::min(l, L);
+}
+
 int main(int argc, char* argv[]) {
 	struct stat buffer;
 	if(argc < 2 || stat(argv[1], &buffer) != 0) {
@@ -172,6 +186,10 @@ int main(int argc, char* argv[]) {
 	window.add(*hb);
 	Gtk::VButtonBox box(Gtk::BUTTONBOX_SPREAD);
 	hb->pack_end(box);
+
+	Gtk::Button typeBut("E/S");
+	typeBut.signal_clicked().connect([]() { saveE_fun(); });
+	box.pack_start(typeBut);
 
 	Gtk::VBox Wbox(false, 0);
 	Gtk::Label Wlab("W");

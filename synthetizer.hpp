@@ -9,7 +9,8 @@ void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
 				Pix *S[], int W[], int H[], uchar* El[]);
 void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]);
 void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int m, int m2,
-					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa);
+					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa,
+					bool saveE = true);
 
 // Algortihm for texture syntesis
 // Return a map to the pixel of E

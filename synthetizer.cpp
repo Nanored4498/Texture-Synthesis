@@ -146,7 +146,8 @@ void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
 }
 
 void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int m, int m2,
-					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa) {
+					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa,
+					bool saveE) {
 	if(l == 0) { // Creation of S_0
 		for(int i = 0; i < W[0]*H[0]; i++)
 			S[0][i] = {0, 0};
@@ -182,7 +183,10 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], 
 			for(int i = 0; i < c; i++)
 				correct(nS, W[l], H[l], h, m, m2, C, El[l], kappa);
 		}
-		save(nS, W[l], H[l], El[l], m2, "out.png");
+		if(saveE)
+			save(nS, W[l], H[l], El[l], m2, "out.png");
+		else
+			saveS(nS, W[l], H[l], m, "out.png");
 		if(!S[l]) delete[] S[l];
 		S[l] = nS;
 	}
