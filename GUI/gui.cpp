@@ -71,7 +71,6 @@ static Gtk::HBox *hb;
 
 // Parameters
 static int W = 2, H = 2;
-// VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
 VD r = VD(9, 0);
 static int c = 2;
 static double kappa = 0.2;

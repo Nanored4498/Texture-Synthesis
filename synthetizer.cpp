@@ -44,18 +44,20 @@ inline unsigned int int_hash(unsigned int x) {
     return x;
 }
 
-inline Pix hp(int p) {
+inline void hp(int p, double &hpx, double &hpy) {
 	unsigned int a = int_hash(p);
 	unsigned int b = int_hash(a+p);
-	return {(int) ((b & 1) << 1) - 1, (int) ((b & 1) << 1) - 1};
+	hpx = ((a % 512) - 256) / 256;
+	hpy = ((b % 512) - 256) / 256;
 }
 
 void jitter(Pix* S, int W, int H, int h, int m, double r) {
 	double hr = h*r;
 	int size = W*H;
+	double hpx, hpy;
 	for(int i = 0; i < size; i++) {
-		Pix q = hp(i);
-		S[i] = (S[i] + Pix(m + floor(hr*q.x + 0.5), m + floor(hr*q.y + 0.5))) % m;
+		hp(i, hpx, hpy);
+		S[i] = (S[i] + Pix(m + floor(hr*hpx + 0.5), m + floor(hr*hpy + 0.5))) % m;
 	}
 }
 
@@ -187,7 +189,7 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], 
 		if(saveE)
 			save(nS, W[l], H[l], El[l], m2, "out.png");
 		else
-			saveS(nS, W[l], H[l], m2, "out.png");
+			saveS(nS, W[l], H[l], md, "out.png");
 		if(!S[l]) delete[] S[l];
 		S[l] = nS;
 	}
