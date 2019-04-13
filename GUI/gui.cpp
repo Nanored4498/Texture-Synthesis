@@ -4,6 +4,10 @@
 #include <gtkmm/button.h>
 #include <gtkmm/main.h>
 #include <gtkmm/stock.h>
+#include <gtkmm/menubar.h>
+#include <gtkmm/menu.h>
+#include <gtkmm/imagemenuitem.h>
+#include <gtkmm/filechooserdialog.h>
 #include <gtkmm/window.h>
 
 #include <glibmm/thread.h>
@@ -12,8 +16,8 @@
 #include "../synthetizer.hpp"
 #include "../stb_image_write.h"
 
-#include <sys/stat.h>
 #include <iostream>
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -66,13 +70,12 @@ static ScalingImage *image = NULL;
 static Gtk::HBox *hb;
 
 // Parameters
-static int W = 3, H = 2;
+static int W = 2, H = 2;
 // VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
 VD r = VD(9, 0);
-static int c = 3;
+static int c = 2;
 static double kappa = 0.2;
 static bool to_tor = false;
-static char *filename;
 static uchar *E, *Ed, *E2;
 static int m, md, m2;
 static double is_tore, new_E;
@@ -81,14 +84,16 @@ static char folder[100];
 static Pix *Ss[9];
 static int Ws[9], Hs[9];
 static uchar *El[9];
-static int l = 0, L;
+static int l = -1, L;
 static bool saveE = true;
 
 void clean() {
-	if(new_E) delete[] E;
-	else free(E);
-	if(md < m) delete[] Ed;
-	if(!is_tore) delete[] E2;
+	if(!E) {
+		if(new_E) delete[] E;
+		else free(E);
+	}
+	if(md < m && !Ed) delete[] Ed;
+	if(!is_tore && !E2) delete[] E2;
 	for(int i = 0; i < 9; i++) {
 		if(!Ss[i]) delete[] Ss[i];
 		if(!El[i]) delete[] El[i];
@@ -160,21 +165,32 @@ void saveE_fun() {
 	} else l = std::min(l, L);
 }
 
-int main(int argc, char* argv[]) {
-	struct stat buffer;
-	if(argc < 2 || stat(argv[1], &buffer) != 0) {
-		std::cerr << "Bad number of arguments or bad filename given in first argument\n" << std::endl;
-		std::cerr << "This is a texture synthetiser GUI." << std::endl;
-		std::cerr << "You can use it by typing: \t" << argv[0] << " <filename>" << std::endl;
-		std::cerr << "Where:" << std::endl;
-		std::cerr << "filename is the name of the image file used as an example" << std::endl;
-		return 1;
+void open_image(const char *filename) {
+	bool pred_saveE = saveE;
+	while(l != -1) {
+		l = 42;
+		usleep(100000);
 	}
-	filename = argv[1];
+	saveE = pred_saveE;
+	clean();
+	if(load_image(filename, to_tor, E, m, is_tore, new_E, Ed, md)) {
+		std::cerr << "Impossible to load the chosen image !" << std::endl;
+		return;
+	}
+	init_variables(Ed, md, !is_tore, filename,
+					m2, E2, have_folder, folder, L);
+	init_live(W, H, E2, m2, L,
+				Ss, Ws, Hs, El);
+	l = 0;
+	Glib::Thread::create([]() {	update(); }, false);
+}
+
+int main(int argc, char* argv[]) {
 	Gtk::Main app(argc, argv);
 	Gtk::Window window;
 
 	window.set_title("Texture Synthesis");
+	struct stat buffer;
 	if(stat("ims/1.png", &buffer) == 0)
 		window.set_icon_from_file("ims/1.png");
 	window.set_default_size(600, 400);
@@ -182,8 +198,37 @@ int main(int argc, char* argv[]) {
 	screen_width = screen->get_width();
 	screen_height = screen->get_height();
 
+	Gtk::VBox vb;
+	window.add(vb);
+
+	// Menu Bar
+	Gtk::MenuBar bar;
+	Gtk::MenuItem fileItem("_File", true);
+	bar.append(fileItem);
+	Gtk::Menu fileMenu;
+	fileItem.set_submenu(fileMenu);	
+	Gtk::ImageMenuItem openItem(Gtk::Stock::OPEN);
+	openItem.signal_activate().connect([&window]() {
+		Gtk::FileChooserDialog dialog(window, "Open a sample image");
+		dialog.set_current_folder("./ims/");
+		
+		Glib::RefPtr<Gtk::FileFilter> imageFilter = Gtk::FileFilter::create();
+		imageFilter->set_name("Image File");
+		imageFilter->add_mime_type("image/*");
+		dialog.add_filter(imageFilter);
+		
+		dialog.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
+		dialog.add_button(Gtk::Stock::OPEN, Gtk::RESPONSE_OK);
+		
+		if(dialog.run() == Gtk::RESPONSE_OK)
+			open_image(dialog.get_filename().c_str());
+	});
+	fileMenu.append(openItem);
+	vb.pack_start(bar, Gtk::PACK_SHRINK);
+
 	hb = new Gtk::HBox(false, 0);
-	window.add(*hb);
+	vb.add(*hb);
+
 	Gtk::VButtonBox box(Gtk::BUTTONBOX_SPREAD);
 	hb->pack_end(box);
 
@@ -234,6 +279,7 @@ int main(int argc, char* argv[]) {
 	Gtk::HScale sliders[9];
 	for(int i = 0; i < 9; i++) {
 		sliders[i] = Gtk::HScale(0.0, 1.01, 0.01);
+		sliders[i].set_value_pos(Gtk::POS_RIGHT);
 		box.pack_start(sliders[i]);
 		Gtk::HScale *slider = sliders+i;
 		sliders[i].signal_button_release_event().connect([slider, i](GdkEventButton *e) {
@@ -244,16 +290,10 @@ int main(int argc, char* argv[]) {
 		});
 	}
 
-	window.show_all();
+	if(argc > 1)
+		open_image(argv[1]);
 
-	// Initialisation
-	if(load_image(filename, to_tor, E, m, is_tore, new_E, Ed, md))
-		return 1;
-	init_variables(Ed, md, !is_tore, filename,
-					m2, E2, have_folder, folder, L);
-	init_live(W, H, E2, md, m2, L,
-				Ss, Ws, Hs, El);
-	Glib::Thread::create([]() {	update(); }, false);
+	window.show_all();
 	
 	Gtk::Main::run(window);
 	clean();

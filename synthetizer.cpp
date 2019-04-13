@@ -14,19 +14,20 @@
 /*** Phase 1 : Upsampling ***/
 /****************************/
 
-Pix* upsample(Pix* S, int W, int H, int h, int m) {
+Pix* upsample(Pix* S, int W, int H, int h, int md) {
 	Pix* res = new Pix[W*H*4];
 	int W2 = W*2;
-	h = floor(h*0.5);
-	Pix ze = {m-h, m-h}, ri = {h, m-h}, up = {m-h, h}, di = {h, h};
+	int h1 = floor(h*0.5);
+	int h2 = floor(md - double(h*0.5));
+	Pix ze = {h2, h2}, ri = {h1, h2}, up = {h2, h1}, di = {h1, h1};
 	for(int i = 0; i < W; i++) {
 		for(int j = 0; j < H; j++) {
 			Pix u = S[i+W*j];
 			int p = 2*(i + j*W2);
-			res[p] = (u + ze) % m;
-			res[p+1] = (u + ri) % m;
-			res[p+W2] = (u + up) % m;
-			res[p+W2+1] = (u + di) % m;
+			res[p] = (u + ze) % md;
+			res[p+1] = (u + ri) % md;
+			res[p+W2] = (u + up) % md;
+			res[p+W2+1] = (u + di) % md;
 		}
 	}
 	return res;
@@ -101,11 +102,11 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 /*** Main Algorithm ***/
 /**********************/
 
-void init_variables(uchar *E, int m, bool tor, const char* file,
+void init_variables(uchar *Ed, int md, bool tor, const char* file,
 					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L) {
 	// Initialization of images that will be used
-	m2 = tor ? 2*m : m;
-	E2 = tor ? torrify(E, m) : E;
+	m2 = tor ? 2*md : md;
+	E2 = tor ? torrify(Ed, md) : Ed;
 	// Folder of coherence
 	have_folder = strcmp(file, "") != 0;
 	if(have_folder) {
@@ -113,7 +114,7 @@ void init_variables(uchar *E, int m, bool tor, const char* file,
 		folder[strlen(file)-4] = 0;
 	}
 	// Number of steps
-	L = ceil(log2(m));
+	L = ceil(log2(md));
 }
 
 void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]) {
@@ -127,7 +128,7 @@ void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]) {
 	}
 }
 
-void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
+void init_live(int W0, int H0, uchar* E2, int m2, int L,
 				Pix *S[], int W[], int H[], uchar* El[]) {
 	W[0] = W0;
 	H[0] = H0;
@@ -145,28 +146,28 @@ void init_live(int W0, int H0, uchar* E2, int m, int m2, int L,
 	}
 }
 
-void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int m, int m2,
+void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int md, int m2,
 					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa,
 					bool saveE) {
 	if(l == 0) { // Creation of S_0
 		for(int i = 0; i < W[0]*H[0]; i++)
 			S[0][i] = {0, 0};
 		if(r.size() > 0 && r[0] > 0)
-			jitter(S[0], W[0], H[0], m, m, r[0]);
+			jitter(S[0], W[0], H[0], md, md, r[0]);
 		save(S[0], W[0], H[0], E2, m2, "out.png");
 	} else {
 		char name[100];
 		// footstep
 		int h = 1 << (L-l);
 		// Upsampling
-		Pix* nS = upsample(S[l-1], W[l-1], H[l-1], h, m);
+		Pix* nS = upsample(S[l-1], W[l-1], H[l-1], h, md);
 		// Jitter
 		if(l < (int) r.size() && r[l] > 0)
-			jitter(nS, W[l], H[l], h, m, r[l]);
+			jitter(nS, W[l], H[l], h, md, r[l]);
 		// Correction
 		if(l > 2) {
 			VVP C;
-			initCoherence(C, m);
+			initCoherence(C, md);
 			if(have_folder) {
 				sprintf(name, "%s/coherence_%d.png", folder, l);
 				struct stat buffer;
@@ -176,17 +177,17 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], 
 					boost::filesystem::path dir(folder);
 					if(boost::filesystem::create_directory(folder))
 						std::cerr << "Directory Created: " << folder << std::endl;
-					appendCoherence(C, El[l], m, m2, h);
-					writeCoherence(C, 1, name, m);
+					appendCoherence(C, El[l], md, m2, h);
+					writeCoherence(C, 1, name, md);
 				}
 			}
 			for(int i = 0; i < c; i++)
-				correct(nS, W[l], H[l], h, m, m2, C, El[l], kappa);
+				correct(nS, W[l], H[l], h, md, m2, C, El[l], kappa);
 		}
 		if(saveE)
 			save(nS, W[l], H[l], El[l], m2, "out.png");
 		else
-			saveS(nS, W[l], H[l], m, "out.png");
+			saveS(nS, W[l], H[l], m2, "out.png");
 		if(!S[l]) delete[] S[l];
 		S[l] = nS;
 	}
@@ -333,10 +334,9 @@ int load_image(const char* filename, double to_tor, uchar *&E, int &m, double &i
 
 	// Eventually resize to a square
 	new_E = false;
-	m = w;
+	m = std::min(w, h);
 	if(w != h) {
 		uchar* temp = square(E, w, h);
-		m = std::min(w, h);
 		free(E);
 		E = temp;
 		new_E = true;
