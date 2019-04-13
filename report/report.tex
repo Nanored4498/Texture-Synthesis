@@ -11,7 +11,7 @@
 	Rapport
 }
 \author{
-	Yoann Coudert--Osmont
+	Yoann Coudert-\,-Osmont
 	\and
 	Jérémy Petithomme
 }
@@ -22,6 +22,43 @@
 
 \section{Introduction}
 	
-La synthèse de texture consiste à créer une grande image à partir d'une petite image exemple ou à partir d'un modèle. La texture produite doit respecter une certaine structure mais si elle est produite à partir d'un exemple elle ne doit pas être une simple copie de l'exemple.
+La synthèse de texture consiste à créer une grande image à partir d'une petite image exemple ou à partir d'un modèle. La texture produite doit respecter une certaine structure mais si elle est produite à partir d'un exemple elle ne doit pas être une simple copie de l'exemple. Nous avons décidé de réaliser un génération de textures à partir d'exemples. \\
+Les critères intéressant d'une génération de textures, sont la rapidité d'exécution, la qualité de l'image produite et le contrôle de l'utilisateur. Nous avons décidé d'implémenter un algorithme qui remplie très bien ce dernier critère de contrôlabilité. Nous nous sommes alors penché sur le reproduction du générateur de texture de Lefebvre et Hoppe \cite{Lef++} qui est basé sur la correspondance de voisinages. Ce générateur est parallélisé et peux donc être utilisé en temps réel sur les GPU actuels. Notre implémentation est faite en C++ et est exécuté sur CPU. Les performances sont alors moindres mais le résultat reste satisfaisant.
+
+\subsection{Comment utiliser notre code}
+
+\paragraph{Dépendances}
+Certaines installations ont besoin d'être faites :
+\begin{itemize}
+	\item OpenMp pour la parallélisation. Pour l'installer : \verb|sudo apt install libomp-dev|.
+	\item Une partie de la librairie C++ boost pour gérer les fichiers indépendamment du système. Pour l'installer : \verb|sudo apt install libboost-filesystem-dev|.
+	\item La librairie C++ GTKmm est utilisée dans notre interface graphique. Pour l'installer : \verb|sudo apt install libgtkmm-3.0-dev|.
+\end{itemize}
+
+\paragraph{Le dossier \texttt{ims}}
+Dans ce dossier se trouve 3 images et un dossier par images. Les dossiers contiennent des images dites de cohérences qui seront expliqués plus loin. Ces dossiers peuvent aussi contenir des images \verb|res.png| qui sont les résultats obtenus. Pour obtenir plus d'images d'exemples, vous pouvez vous placer dans le dossier \verb|ims| et lancer le script \verb|get_more_images.sh| qui téléchargera d'autres images avec leurs dossiers de cohérences.
+
+\paragraph{Compiler et exécuter}
+Nous avons deux exécutables. Le premier peut être créé via la commande \verb|make|. L'exécutable créé a alors le nom \verb|main| et permet d'exécuter notre générateur sur une image et de créer une image pour chaque étape de l'algorithme. Pour l'utiliser, tapez :
+\begin{center}
+	\texttt{./main <filename> [-c] [-t]}
+\end{center}
+Le premier argument est obligatoire et est le chemin d'accès à l'image d'exemple (par exemple \verb|ims/1.png|). Les deux paramètres suivants sont optionnels. \verb|-c| permet de calculer les images de cohérences si elle n'existent pas déjà. Si vous voulez les recalculer il faudra supprimer les images de cohérences actuelles. Les images de cohérences sont générés dans un dossier du même nom que l'image d'exemple. L'option \verb|-t| permet de rendre toroïdale l'image donnée en exemple. \\
+Le second exécutable est celui de l'interface graphique. Pour créé cet exécutable il faut utiliser \verb|make g|. Pour lancer alors l'interface graphique il suffit de taper :
+\begin{center}
+	\verb|./gui [filename]|
+\end{center}
+Le paramètre \verb|filename| est cette fois-ci optionnelle puisque le fichier peut être chargé dans l'interface graphique. Une fenêtre s'ouvrira et vous aurez à gauche l'image générée et à droite plusieurs sliders permettant de contrôler la texture générée.
+
+\section{Explication de l'algorithme}
+
+\paragraph{A cité}
+\cite{Ary++}
+
+\appendix
+
+\bibliographystyle{plain}
+\bibliography{bib.bib}
+
 
 \end{document}

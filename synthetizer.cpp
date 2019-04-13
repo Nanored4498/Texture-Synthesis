@@ -47,8 +47,8 @@ inline unsigned int int_hash(unsigned int x) {
 inline void hp(int p, double &hpx, double &hpy) {
 	unsigned int a = int_hash(p);
 	unsigned int b = int_hash(a+p);
-	hpx = ((a % 512) - 256) / 256;
-	hpy = ((b % 512) - 256) / 256;
+	hpx = (double(a % 512) - 256) / 256;
+	hpy = (double(b % 512) - 256) / 256;
 }
 
 void jitter(Pix* S, int W, int H, int h, int m, double r) {

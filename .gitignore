@@ -11,3 +11,7 @@ report/report.aux
 report/report.synctex.gz
 report/report.log
 launch.sh
+report/report.blg
+report/report.bbl
+report/report.fdb_latexmk
+report/report.fls

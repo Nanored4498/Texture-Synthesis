@@ -24,7 +24,7 @@ make
 
 Then to execute the algorithm you have to type:
 ```
-./main [filename] [-c] [-t]
+./main <filename> [-c] [-t]
 ```
 The first parameter is the name of the image given in input.
 The argument `-c` is optional and if it is given then some images called coherence maps are computed. It may take a while. The argument `-t` is optional and if it is given then the image in input is torified.
@@ -37,12 +37,20 @@ Here are two examples of images created by the algorithm :
 
 ## GUI
 
-You can also use a GUI. There are some BUGs when the sample is big and generated files are big. To compile this GUI you have to run:
+You can also use a GUI. This GUI allow you to change parameters and see the result in the window in real time. There are some BUGs when the sample is big and generated files are big. To compile this GUI you have to run:
 ```
 make g
 ```
 Then to execute the GUI you have to run:
 ```
-./gui <filename>
+./gui [filename]
 ```
-Where filename is name of the file you want to load. In the future you will be able to do that in the GUI.
+Where filename is the name of the file you want to load. This parameter is optional and the file can be loaded in the GUI.
+
+## More Images
+
+You can obtain more images with their coherence and sometimes with the result by running:
+```
+cd ims
+./get_more_images.sh
+```
