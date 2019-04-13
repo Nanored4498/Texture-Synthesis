@@ -4,6 +4,7 @@
 #include <gtkmm/stock.h>
 #include <gtkmm/window.h>
 #include <glibmm/thread.h>
+#include <glibmm/fileutils.h>
 
 #include "../synthetizer.hpp"
 #include "../stb_image_write.h"
@@ -29,6 +30,17 @@ public:
 		Glib::RefPtr<Gdk::Pixbuf> scaled =
 			m_original->scale_simple(max(1.0, scale*m_original->get_width()), max(1.0, scale*m_original->get_height()), m_interp);
 		Gtk::Image::set(scaled);
+	}
+
+	void setPixbuf(const std::string &filename) {
+		try {
+			Glib::RefPtr<Gdk::Pixbuf> pixb = Gdk::Pixbuf::create_from_file(filename);
+			this->setPixbuf(pixb);
+		} catch(const Glib::FileError &ex) {
+			std::cerr << "FileError: " << ex.what() << std::endl;
+		} catch(const Gdk::PixbufError &ex) {
+			std::cerr << "PixbufError: " << ex.what() << std::endl;
+		}
 	}
 
 protected:
@@ -86,9 +98,8 @@ void update() {
 			uchar* Sh = magnify(md, E, m, Ss[L], W, H, Wh, Hh);
 			stbi_write_png("out.png", Wh, Hh, 3, Sh, 0);
 			delete[] Sh;
-		} else
-			save_smooth(Ss[L], Ws[L], Hs[L], E, m, "out.png");
-		image->setPixbuf(Gdk::Pixbuf::create_from_file("out.png"));
+		} else save_smooth(Ss[L], Ws[L], Hs[L], E, m, "out.png");
+		image->setPixbuf("out.png");
 		if(l > L) {
 			l = -1;
 			return;
@@ -97,9 +108,9 @@ void update() {
 	l ++;
 	synthesize_step(l-1, Ss, Ws, Hs, E2, El, md, m2,
 					r, L, have_folder, folder, false, c, kappa);
-	if(image != NULL)
-		image->setPixbuf(Gdk::Pixbuf::create_from_file("out.png"));
-	else {
+	if(image != NULL) {
+		image->setPixbuf("out.png");
+	} else {
 		image = new ScalingImage(Gdk::Pixbuf::create_from_file("out.png"));
 		hb->pack_start(*image);
 		image->show();

@@ -123,8 +123,6 @@ void rows_to_uchar(uchar* out, VVC rows, int W, int H, int c) {
 }
 
 void double_filter_1D(uchar* in, uchar* out, int W, int H, VC &filter_col, VC &filter_row) {
-	#pragma omp parallel for
-	for(int i = 0; i < 3*W*H; i++) out[i] = in[i];
 	for(int c = 0; c < 3; c++) {
 		VVC cols, rows;
 		get_cols(in, cols, c, W, H);
