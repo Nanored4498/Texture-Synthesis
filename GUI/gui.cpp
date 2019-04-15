@@ -118,7 +118,7 @@ void update() {
 		} else update();
 	}
 	l ++;
-	synthesize_step(l-1, Ss, Ws, Hs, E2, El, md, m2,
+	synthesize_step(l-1, Ss, Ws, Hs, El, md, m2,
 					r, L, have_folder, folder, false, c, kappa, saveE);
 	if(image != NULL) {
 		image->setPixbuf("out.png");

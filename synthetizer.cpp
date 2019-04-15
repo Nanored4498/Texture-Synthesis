@@ -104,51 +104,7 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 /*** Main Algorithm ***/
 /**********************/
 
-void init_variables(uchar *Ed, int md, bool tor, const char* file,
-					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L) {
-	// Initialization of images that will be used
-	m2 = tor ? 2*md : md;
-	E2 = tor ? torrify(Ed, md) : Ed;
-	// Folder of coherence
-	have_folder = strcmp(file, "") != 0;
-	if(have_folder) {
-		strcpy(folder, file);
-		folder[strlen(file)-4] = 0;
-	}
-	// Number of steps
-	L = ceil(log2(md));
-}
-
-void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]) {
-	W[0] = W0;
-	H[0] = H0;
-	if(!S[0]) delete[] S[0];
-	S[0] = new Pix[W0*H0];
-	for(int l = 1; l <= L; l++) {
-		W[l] = 2*W[l-1];
-		H[l] = 2*H[l-1];
-	}
-}
-
-void init_live(int W0, int H0, uchar* E2, int m2, int L,
-				Pix *S[], int W[], int H[], uchar* El[]) {
-	W[0] = W0;
-	H[0] = H0;
-	S[0] = new Pix[W0*H0];
-	for(int l = 1; l <= L; l++) {
-		int h = 1 << (L-l);
-		if(h == 1)
-			El[l] = E2;
-		else {
-			El[l] = new uchar[3*m2*m2];
-			gauss(E2, El[l], h, m2, m2);
-		}
-		W[l] = 2*W[l-1];
-		H[l] = 2*H[l-1];
-	}
-}
-
-void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], int md, int m2,
+void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *El[], int md, int m2,
 					VD &r, int L, bool have_folder, char* folder, bool compute_co, int c, double kappa,
 					bool saveE) {
 	if(l == 0) { // Creation of S_0
@@ -156,7 +112,7 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *E2, uchar *El[], 
 			S[0][i] = {0, 0};
 		if(r.size() > 0 && r[0] > 0)
 			jitter(S[0], W[0], H[0], md, md, r[0]);
-		save(S[0], W[0], H[0], E2, m2, "out.png");
+		save(S[0], W[0], H[0], El[0], m2, "out.png");
 	} else {
 		char name[100];
 		// footstep
@@ -367,4 +323,49 @@ int load_image(const char* filename, double to_tor, uchar *&E, int &m, double &i
 		Ed = downsample(E, m, ds);
 	} else Ed = E;
 	return 0;
+}
+
+void init_variables(uchar *Ed, int md, bool tor, const char* file,
+					int &m2, uchar*&E2, bool &have_folder, char* folder, int &L) {
+	// Initialization of images that will be used
+	m2 = tor ? 2*md : md;
+	E2 = tor ? torrify(Ed, md) : Ed;
+	// Folder of coherence
+	have_folder = strcmp(file, "") != 0;
+	if(have_folder) {
+		strcpy(folder, file);
+		folder[strlen(file)-4] = 0;
+	}
+	// Number of steps
+	L = ceil(log2(md));
+}
+
+void init_live_WH(int L, int W0, int H0, Pix *S[], int W[], int H[]) {
+	W[0] = W0;
+	H[0] = H0;
+	if(!S[0]) delete[] S[0];
+	S[0] = new Pix[W0*H0];
+	for(int l = 1; l <= L; l++) {
+		W[l] = 2*W[l-1];
+		H[l] = 2*H[l-1];
+	}
+}
+
+void init_live(int W0, int H0, uchar* E2, int m2, int L,
+				Pix *S[], int W[], int H[], uchar* El[]) {
+	W[0] = W0;
+	H[0] = H0;
+	S[0] = new Pix[W0*H0];
+	El[0] = E2;
+	for(int l = 1; l <= L; l++) {
+		int h = 1 << (L-l);
+		if(h == 1)
+			El[l] = E2;
+		else {
+			El[l] = new uchar[3*m2*m2];
+			gauss(E2, El[l], h, m2, m2);
+		}
+		W[l] = 2*W[l-1];
+		H[l] = 2*H[l-1];
+	}
 }
