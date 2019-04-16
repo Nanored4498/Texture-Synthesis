@@ -4,6 +4,9 @@
 \usepackage[utf8]{inputenc}  
 \usepackage[T1]{fontenc}
 \usepackage[left=2.5cm,right=2.5cm,top=3cm,bottom=2.65cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
 
 \title{
 	Computational Geometry and Digital Images\\
@@ -52,7 +55,30 @@ Le paramètre \verb|filename| est cette fois-ci optionnelle puisque le fichier p
 
 \section{Explication de l'algorithme}
 
+\paragraph{Supposition carré}
 Pour commencer on suppose que l'on part d'une image d'exemple $E$ qui est carrée. Si notre image est rectangulaire alors il suffit de prendre un carré de taille maximale de l'image de départ.
+
+\paragraph{Astuce pour les images trop grandes}
+Si l'image d'exemple est trop grande on divise sa largeur par $2^p$ avec $p$ choisi de manière à obtenir une nouvelle image de largeur comprise entre 129 et 256. Nous avons commencé par réduire la taille en faisant un filtrage gaussien puis en prenant le premier pixel de chaque bloc de largeur $2^p$ mais le résultat n'était pas au rendez vous. Nous sommes revenu sur quelque chose de plus simple en prenant la valeur moyenne sur chaque bloc de largeur $2^p$. On note $E_l$ l'image réduite et $E_h$ l'image de départ.
+
+Une fois que notre algorithme a produit la map $S_l$ pointant vers les pixels de $E_l$, on construit une nouvelle image $I$ de meilleure qualité en faisant une interpolation. Voici la calcul effectué pour trouvé la nouvelle couleur du pixel à la position $(x, y)$.
+
+%\begin{figure}
+	\begin{algorithmic}[1]
+		\Function{Magnify}{$x, y$}
+			\State $x_L, \, y_L \gets x / 2^p, \, y / 2^p$
+			\State $dp = (dp_x, dp_y) \gets x \mod 2^p, \, y \mod 2^p$
+			\For{$i, j \in \{ 0, 1 \}^2$}
+				\State $u_{i, j} \gets 2^p \left( S \left[ x_L + i, \, y_L + j \right] - \left( i, \, j \right) \right) + dp$
+				\State $color \left[ i, \, j \right] \gets E_h \left[ u_{i, j} \right]$
+			\EndFor
+			\State \Return $color \left[ 0, \, 0 \right] (1 - dp_x) (1 - dp_y)
+						+ color \left[ 1, \, 0 \right] dp_x (1 - dp_y)$
+			\State $\qquad \qquad + \, color \left[ 0, \, 1 \right] (1 - dp_x) dp_y
+						+ color \left[ 1, \, 1 \right] dp_x dp_y$
+		\EndFunction
+	\end{algorithmic}
+%\end{figure}
 
 \paragraph{A cité}
 \cite{Ary++}

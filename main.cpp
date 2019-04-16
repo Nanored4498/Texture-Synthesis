@@ -9,7 +9,7 @@
 int main(int argc, char* argv[]) {
 	// Parameters
 	int W = 3, H = 2;
-	VD r = {0.2, 0.3, 0.35, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
+	VD r = {0.2, 0.3, 0.32, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
 	bool compute_co = false;
 	bool to_tor = false;
 

@@ -85,41 +85,54 @@ static int Ws[9], Hs[9];
 static uchar *El[9];
 static int l = -1, L;
 static bool saveE = true;
+static bool need_init_live_WH = false;
 
 void clean() {
 	if(!E) {
 		if(new_E) delete[] E;
 		else free(E);
+		E = 0;
 	}
-	if(md < m && !Ed) delete[] Ed;
-	if(!is_tore && !E2) delete[] E2;
+	if(md < m && !Ed) delete[] Ed, Ed = 0;
+	if(!is_tore && !E2) delete[] E2, E2 = 0;
 	for(int i = 0; i < 9; i++) {
-		if(!Ss[i]) delete[] Ss[i];
-		if(!El[i]) delete[] El[i];
+		if(!Ss[i]) delete[] Ss[i], Ss[i] = 0;
+		if(!El[i]) delete[] El[i], El[i] = 0;
 	}
 }
 
 void update() {
+	if(l == 0 && need_init_live_WH) {
+		need_init_live_WH = false;
+		init_live_WH(L, W, H, Ss, Ws, Hs);
+	}
 	if(l > L) {
 		if(!saveE) {
 			l = -1;
 			return;
 		}
+		std::cout << "magnify or smooth" << std::endl;
 		if(md < m) {
+			std::cout << "magnify" << std::endl;
 			int Wh, Hh;
 			uchar* Sh = magnify(md, E, m, Ss[L], W, H, Wh, Hh);
 			stbi_write_png("out.png", Wh, Hh, 3, Sh, 0);
 			delete[] Sh;
+			std::cout << "end magnify" << std::endl;
 		} else save_smooth(Ss[L], Ws[L], Hs[L], E, m, "out.png");
+		std::cout << "end of perfection" << std::endl;
 		image->setPixbuf("out.png");
+		std::cout << "change pixbuf" << std::endl;
 		if(l > L) {
 			l = -1;
 			return;
 		} else update();
 	}
+	std::cout << "step start" << std::endl;
 	l ++;
 	synthesize_step(l-1, Ss, Ws, Hs, El, md, m2,
 					r, L, have_folder, folder, false, c, kappa, saveE);
+	std::cout << "step end" << std::endl;
 	if(image != NULL) {
 		image->setPixbuf("out.png");
 	} else {
@@ -127,6 +140,7 @@ void update() {
 		hb->pack_start(*image);
 		image->show();
 	}
+	std::cout << "change pixbuf" << std::endl;
 	update();
 }
 
@@ -141,7 +155,7 @@ void jitter_fun(Gtk::HScale *slider, int i) {
 void dim_fun(int W0, int H0) {
 	if(W0 > 0) W = W0;
 	if(H0 > 0) H = H0;
-	init_live_WH(L, W, H, Ss, Ws, Hs);
+	need_init_live_WH = true;
 	if(l == -1) {
 		l = 0;
 		update();
@@ -159,13 +173,19 @@ void c_fun(int c0) {
 void saveE_fun() {
 	saveE = !saveE;
 	if(l == -1) {
-		l = L;
-		update();
+		if(saveE) {
+			l = L+1;
+			update();
+		} else {
+			saveS(Ss[L], Ws[L], Hs[L], md, "out.png");
+			image->setPixbuf("out.png");
+		}
 	} else l = std::min(l, L);
 }
 
-void open_image(const char *filename) {
+void open_image(const char *filename, bool launch_thread=false) {
 	bool pred_saveE = saveE;
+	saveE = false;
 	while(l != -1) {
 		l = 42;
 		usleep(100000);
@@ -181,7 +201,8 @@ void open_image(const char *filename) {
 	init_live(W, H, E2, m2, L,
 				Ss, Ws, Hs, El);
 	l = 0;
-	Glib::Thread::create([]() {	update(); }, false);
+	if(launch_thread) Glib::Thread::create([]() { update(); });
+	else update();
 }
 
 int main(int argc, char* argv[]) {
@@ -220,7 +241,7 @@ int main(int argc, char* argv[]) {
 		dialog.add_button(Gtk::Stock::OPEN, Gtk::RESPONSE_OK);
 		
 		if(dialog.run() == Gtk::RESPONSE_OK)
-			open_image(dialog.get_filename().c_str());
+			Glib::Thread::create([&dialog]() { open_image(dialog.get_filename().c_str()); });
 	});
 	fileMenu.append(openItem);
 	vb.pack_start(bar, Gtk::PACK_SHRINK);
@@ -242,7 +263,7 @@ int main(int argc, char* argv[]) {
 	Wslider.set_value(W);
 	Wslider.signal_button_release_event().connect([&Wslider](GdkEventButton *e) {
 		int W0 = Wslider.get_value();
-		Glib::Thread::create([W0]() { dim_fun(W0, 0); }, false);
+		Glib::Thread::create([W0]() { dim_fun(W0, 0); });
 		return false;
 	});
 	Wbox.pack_start(Wslider);
@@ -255,7 +276,7 @@ int main(int argc, char* argv[]) {
 	Hslider.set_value(H);
 	Hslider.signal_button_release_event().connect([&Hslider](GdkEventButton *e) {
 		int H0 = Hslider.get_value();
-		Glib::Thread::create([H0]() { dim_fun(0, H0); }, false);
+		Glib::Thread::create([H0]() { dim_fun(0, H0); });
 		return false;
 	});
 	Hbox.pack_start(Hslider);
@@ -267,7 +288,7 @@ int main(int argc, char* argv[]) {
 	Gtk::HScale Cslider(0, 5, 1);
 	Cslider.set_value(c);
 	Cslider.signal_button_release_event().connect([&Cslider](GdkEventButton *e) {
-		c_fun(Cslider.get_value());
+		Glib::Thread::create([&Cslider]() { c_fun(Cslider.get_value()); });
 		return false;
 	});
 	Cbox.pack_start(Cslider);
@@ -282,19 +303,22 @@ int main(int argc, char* argv[]) {
 		box.pack_start(sliders[i]);
 		Gtk::HScale *slider = sliders+i;
 		sliders[i].signal_button_release_event().connect([slider, i](GdkEventButton *e) {
+			std::cout << "test0" << std::endl;
 			Glib::Thread::create([slider, i]() {
 				jitter_fun(slider, i);
-			}, false);
+			});
+			std::cout << "test1" << std::endl;
 			return false;
 		});
 	}
 
 	if(argc > 1)
-		open_image(argv[1]);
+		open_image(argv[1], true);
 
 	window.show_all();
 	
 	Gtk::Main::run(window);
+
 	clean();
 	return 0;
 }

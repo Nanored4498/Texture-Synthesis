@@ -37,7 +37,7 @@ Here are two examples of images created by the algorithm :
 
 ## GUI
 
-You can also use a GUI. This GUI allow you to change parameters and see the result in the window in real time. There are some BUGs when the sample is big and generated files are big. To compile this GUI you have to run:
+You can also use a GUI. This GUI allow you to change parameters and see the result in the window in real time. There are some BUGs when the sample is big and generated files are big because of the use of openmp with threads of Glib. To solve this you can delete "fopenmp" from the flags at line 4 in the Makefile. If you do that, don't forget to use `make clean; make g` to recompile all files. The code will be slower but BUGs will disappear. To compile this GUI you have to run:
 ```
 make g
 ```
