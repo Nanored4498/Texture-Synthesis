@@ -64,7 +64,7 @@ void loadCoherence(VVP &C, const char* filename) {
 	for(int y = 0; y < m; y++)
 		for(int x = 0; x < m; x++)
 			C[i++].push_back({im[3*(x+y*m)], im[3*(x+y*m)+1]});
-	delete im;
+	free(im);
 }
 
 void writeCoherence(VVP &C, int k, const char* filename, int m) {

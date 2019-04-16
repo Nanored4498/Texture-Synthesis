@@ -13,8 +13,8 @@
 #include <glibmm/thread.h>
 #include <glibmm/fileutils.h>
 
-#include "../synthetizer.hpp"
-#include "../stb_image_write.h"
+#include "synthetizer.hpp"
+#include "stb_image_write.h"
 
 #include <iostream>
 #include <sys/stat.h>
