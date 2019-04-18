@@ -71,9 +71,9 @@ static Gtk::HBox *hb;
 
 // Parameters
 static int W = 2, H = 2;
-VD r = VD(9, 0);
-static int c = 2;
-static double kappa = 0.2;
+static VD r = VD(9, 0);
+static int c = 3;
+static double kappa = 0.08;
 static bool to_tor = false;
 static uchar *E, *Ed, *E2;
 static int m, md, m2;
@@ -111,28 +111,21 @@ void update() {
 			l = -1;
 			return;
 		}
-		std::cout << "magnify or smooth" << std::endl;
 		if(md < m) {
-			std::cout << "magnify" << std::endl;
 			int Wh, Hh;
 			uchar* Sh = magnify(md, E, m, Ss[L], W, H, Wh, Hh);
 			stbi_write_png("out.png", Wh, Hh, 3, Sh, 0);
 			delete[] Sh;
-			std::cout << "end magnify" << std::endl;
 		} else save_smooth(Ss[L], Ws[L], Hs[L], E, m, "out.png");
-		std::cout << "end of perfection" << std::endl;
 		image->setPixbuf("out.png");
-		std::cout << "change pixbuf" << std::endl;
 		if(l > L) {
 			l = -1;
 			return;
 		} else update();
 	}
-	std::cout << "step start" << std::endl;
 	l ++;
 	synthesize_step(l-1, Ss, Ws, Hs, El, md, m2,
 					r, L, have_folder, folder, false, c, kappa, saveE);
-	std::cout << "step end" << std::endl;
 	if(image != NULL) {
 		image->setPixbuf("out.png");
 	} else {
@@ -140,7 +133,6 @@ void update() {
 		hb->pack_start(*image);
 		image->show();
 	}
-	std::cout << "change pixbuf" << std::endl;
 	update();
 }
 
@@ -300,14 +292,14 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < 9; i++) {
 		sliders[i] = Gtk::HScale(0.0, 1.01, 0.01);
 		sliders[i].set_value_pos(Gtk::POS_RIGHT);
+		sliders[i].set_value(r[i]);
+		sliders[i].set_size_request(140, 15);
 		box.pack_start(sliders[i]);
 		Gtk::HScale *slider = sliders+i;
 		sliders[i].signal_button_release_event().connect([slider, i](GdkEventButton *e) {
-			std::cout << "test0" << std::endl;
 			Glib::Thread::create([slider, i]() {
 				jitter_fun(slider, i);
 			});
-			std::cout << "test1" << std::endl;
 			return false;
 		});
 	}

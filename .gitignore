@@ -1,8 +1,12 @@
-*.png
 *.pdf
 *.out
 .vscode
-ims
+ims/*.jpg
+ims/*.png
+ims/*/*.png
+map*.png
+out*.png
+*.tar.*
 main
 gui
 build

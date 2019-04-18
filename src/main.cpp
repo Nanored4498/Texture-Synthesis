@@ -7,11 +7,18 @@
 #include "synthetizer.hpp"
 
 int main(int argc, char* argv[]) {
-	// Parameters
-	int W = 3, H = 2;
-	VD r = {0.2, 0.3, 0.32, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
+	/****************************/
+	/******** Parameters ********/
+	/****************************/
+	int W = 2, H = 2;
+	int c = 2;
+	double kappa = 0.08;
+	// VD r = {0.2, 0.3, 0.32, 0.3, 0.2, 0.1, 0.1, 0.1, 0.0};
+	VD r = {0.65, 0.35, 0.48, 0.35, 0.3, 0.2, 0.2, 0.1, 0.0};
 	bool compute_co = false;
 	bool to_tor = false;
+	/****************************/
+	/****************************/
 
 	// Parsing
 	if(argc < 2) {
@@ -38,7 +45,7 @@ int main(int argc, char* argv[]) {
 
 	// Check if we have to downsize example
 	if(md < m) {
-		Pix* S = synthesize(Ed, md, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+		Pix* S = synthesize(Ed, md, r, c, kappa, W, H, !is_tore, filename, compute_co);
 		int Wh, Hh;
 		uchar* Sh = magnify(md, E, m, S, W, H, Wh, Hh);
 		stbi_write_png("magnific.png", Wh, Hh, 3, Sh, 0);
@@ -46,7 +53,7 @@ int main(int argc, char* argv[]) {
 		delete[] Sh;
 		delete[] Ed;
 	} else {
-		Pix* S = synthesize(E, m, r, 3, 0.2, W, H, !is_tore, filename, compute_co);
+		Pix* S = synthesize(E, m, r, c, kappa, W, H, !is_tore, filename, compute_co);
 		int L = 1 << (int) ceil(log2(m));
 		save_smooth(S, W*L, H*L, E, m, "magnific.png");
 		delete[] S;

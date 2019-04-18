@@ -65,17 +65,18 @@ void jitter(Pix* S, int W, int H, int h, int m, double r) {
 /*** Phase 3 : Correction ***/
 /****************************/
 
-void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, double kappa) {
-	VI NSp, NEu;
+void correct(Pix *&S, int W, int H, int h, int m, int m2, VVP &C, uchar* E2, double kappa) {
 	double phi2 = pow(1 + kappa, 2.0);
 	VP sps = {{0, 0}, {1, 1}, {0, 1}, {1, 0}, {1, 1}, {0, 0}, {0, 1}, {1, 0}};
+	Pix* nS = new Pix[W*H];
 	for(Pix &sp : sps) {
-		#pragma omp parallel for private(NSp, NEu)
+		#pragma omp parallel for
 		for(int px = sp.x; px < W; px += 2) {
+			VI NSp, NEu;
 			for(int py = sp.y; py < H; py += 2) {
 				int dis = 1e9;
 				Pix umin;
-				getNeighb_S(px, py, 5, S, W, H, E, m2, NSp);
+				getNeighb_S(px, py, 5, S, W, H, E2, m2, NSp);
 				for(int i = -1; i <= 1; i++) {
 					for(int j = -1; j <= 1; j++) {
 						int dpx = (W+px+i) % W, dpy = (H+py+j) % H;
@@ -84,7 +85,7 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 						int c_size = C[du_ind].size();
 						for(int k = 0; k < c_size; k++) {
 							Pix cu = C[du_ind][k];
-							getNeighb(cu.x, cu.y, 5, E, m2, NEu, h);
+							getNeighb(cu.x, cu.y, 5, E2, m2, NEu, h);
 							int d = distNeighb(NSp, NEu, 5);
 							if(k > 0) d *= phi2;
 							if(d < dis) {
@@ -94,10 +95,15 @@ void correct(Pix* S, int W, int H, int h, int m, int m2, VVP &C, uchar* E, doubl
 						}
 					}
 				}
-				S[px + W*py] = umin;
+				nS[px + W*py] = umin;
 			}
 		}
+		#pragma omp parallel for
+		for(int px = sp.x; px < W; px += 2)
+			for(int py = sp.y; py < H; py += 2)
+				S[px + W*py] = nS[px + W*py];
 	}
+	delete[] nS;
 }
 
 /***********************/
@@ -123,7 +129,7 @@ void synthesize_step(int l, Pix *S[], int W[], int H[], uchar *El[], int md, int
 		if(l < (int) r.size() && r[l] > 0)
 			jitter(nS, W[l], H[l], h, md, r[l]);
 		// Correction
-		if(l > 2) {
+		if(l > 2 && c > 0) {
 			VVP C;
 			initCoherence(C, md);
 			if(have_folder) {
@@ -192,7 +198,7 @@ Pix* synthesize(uchar* E, int m, VD &r, int c, double kappa, int W, int H,
 			jitter(S, W, H, h, m, r[l]);
 		
 		// Correction
-		if(l > 2) {
+		if(l > 2 && c > 0) {
 			VVP C;
 			initCoherence(C, m);
 			if(have_folder) {

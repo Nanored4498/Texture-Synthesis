@@ -36,7 +36,7 @@ $(GUI): $(OBJ_C) $(OBJ_CPP_GUI)
 $(BUILD_FOLDER)/%.o: src/%.c
 	gcc $(FLAGS) -c $< -o $@ $(INCLUDE)
 
-$(BUILD_FOLDER)/gui.opp: GUI/gui.cpp
+$(BUILD_FOLDER)/gui.opp: src/GUI/gui.cpp
 	g++ $(FLAGS) -c $< -o $@ $(LINK_GTK) $(INCLUDE)
 
 $(BUILD_FOLDER)/%.opp: src/%.cpp

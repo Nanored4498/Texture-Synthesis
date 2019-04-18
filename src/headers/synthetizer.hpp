@@ -28,7 +28,7 @@ void init_live_WH(int L, int W0, int H0,
 					Pix *S[], int W[], int H[]);
 
 // Algortihm for texture syntesis
-// Return a map to the pixel of E
+// Return a map towars the pixel of E
 Pix* synthesize (
 	uchar* E,					// The sample image which have to be a square
 	int m,						// The size of the image
