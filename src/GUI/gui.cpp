@@ -75,7 +75,7 @@ static VD r = VD(9, 0);
 static int c = 3;
 static double kappa = 0.08;
 static bool to_tor = false;
-static uchar *E, *Ed, *E2;
+static uchar *E=0, *Ed=0, *E2=0;
 static int m, md, m2;
 static double is_tore, new_E;
 static bool have_folder;
@@ -138,6 +138,7 @@ void update() {
 
 void jitter_fun(Gtk::HScale *slider, int i) {
 	r[i] = slider->get_value();
+	if(!E) return;
 	if(l == -1) {
 		l = i;
 		update();
@@ -148,14 +149,19 @@ void dim_fun(int W0, int H0) {
 	if(W0 > 0) W = W0;
 	if(H0 > 0) H = H0;
 	need_init_live_WH = true;
+	if(!E) return;
 	if(l == -1) {
 		l = 0;
+		std::cout << "test" << std::endl;
+		std::cout << E << std::endl;
+		std::cout << "test" << std::endl;
 		update();
 	} else l = 0;
 }
 
 void c_fun(int c0) {
 	c = c0;
+	if(!E) return;
 	if(l == -1) {
 		l = 0;
 		update();
@@ -164,6 +170,7 @@ void c_fun(int c0) {
 
 void saveE_fun() {
 	saveE = !saveE;
+	if(!E) return;
 	if(l == -1) {
 		if(saveE) {
 			l = L+1;

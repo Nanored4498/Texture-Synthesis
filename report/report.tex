@@ -212,7 +212,10 @@ Pour les images dont la taille n'est pas trop grande on rencontre un autre probl
 Chez moi le temps d'exécution pour quadruplé la taille de \verb|ims/1.png| est de 2.2s en utilisant la parallélisation d'OpenMp avec un processeur à 4 cœurs. Sans OpenMP j'obtiens un temps d'exécution de 5.4s. La parallélisation apporte beaucoup et on peut imaginer que les performances doivent être très bonnes sur un GPU.
 
 \paragraph{Qualité}
-La qualité de la texture générée est souvent très bonne quand l'image d'exemple ne contient pas de structure très carré et à grande échelle. La page suivante présente dans un premier temps des exemples qui fonctionnent plutôt bien (\figurename~\ref{good}). En revanche les résultats sont assez mauvais sur des images qui ont une structure stricte et bien définie comme des legos ou du texte.
+La qualité de la texture générée est souvent très bonne quand l'image d'exemple ne contient pas de structure très carré et à grande échelle. La page suivante présente dans un premier temps des exemples qui fonctionnent plutôt bien (\figurename~\ref{good}). En revanche les résultats sont assez mauvais sur des images qui ont une structure stricte et bien définie comme des legos ou du texte (\figurename~\ref{bad}).
+
+\paragraph{Contrôlabilité}
+Finalement pour ce qui est de la contrôlabilité, on comprend bien que les premiers niveaux de jitter vont produire des changements à grande échelle et que les derniers niveaux de jitter produisent de petites variations très locales. Mais avec les passes de correction en plus il est difficile de prédire ce qui va se passer réellement lorsque l'on bouge un curseur. Il est toujours possible de régler l'intensité des jitters avec aucune passe de corrections puis de rajouter les passes de corrections une fois que le jitter nous convient mais cela reste tout de même difficile. De ce point de vu la contrôlabilité reste décevante. En revanche Lefebvre et Hoppe introduise des outils intéressants comme le drag ans drop dans leur papier \cite{Lef++}. Nous ne l'avons pas implémenté par manque de temps mais cette fonctionnalité semble être très agréable pour la contrôlabilité.
 
 \begin{figure}[p]
 	\centering
@@ -244,10 +247,11 @@ La qualité de la texture générée est souvent très bonne quand l'image d'exe
 		\node[right of=l0, node distance=7cm] {\includegraphics[scale=1.5]{lego1.png}};
 	\end{tikzpicture}
 	\captionsetup{justification=centering}
-	\caption{Exemples qui échouent. Les logos et le texte ont une structure très carré/précise que la générateur de texture n'arrive pas à reproduire.}
+	\caption{Exemples qui échouent. Les legos et le texte ont une structure très carré/précise que la générateur de texture n'arrive pas à reproduire.}
 	\label{bad}
 \end{figure}
 
+\newpage
 \appendix
 
 \bibliographystyle{plain}
