@@ -129,7 +129,7 @@ Comme l'image $E_l$ est différente à chaque étape.
 \paragraph{Sur-échantillonnage}
 Lorsqu'on dispose de $S_{l-1}$, on construit son sur-échantillonnage de la manière suivante :
 $$ S_l [2p + \Delta] = \left( S_{l-1} \left[ p \right] + \left\lfloor h_l \left( \Delta - \left( 0.5 \atop 0.5 \right) \right) \right\rfloor \right) \mod m $$
-Où $h_l = 2^{L-l}$ est le pas à chaque étape, et $\Delta$ appartient à $\{ 0, 1 \}^2$. Le pas sera en particulier utilisé lors de la phase de correction pour construire les voisinages. Cette formule fait simplement en sorte que chaque pixel $p$ devienne un carré de 4 pixel dont le barycentre des valeurs est $S[p]$.
+Où $h_l = 2^{L-l}$ est  à chaque étape, et $\Delta$ appartient à $\{ 0, 1 \}^2$. Le pas sera en particulier utilisé lors de la phase de correction pour construire les voisinages. Cette formule fait simplement en sorte que chaque pixel $p$ devienne un carré de 4 pixel dont le barycentre des valeurs est $S[p]$.
 
 \paragraph{Jitter}
 Pour le Jiiter, on se donne une fonction de hachage $\mathcal{H} : \Z^2 \rightarrow [ -1; 1 ]^2$ et un coefficient de Jitter $0 \leqslant r_l \leqslant 1$ qui va représenter l'intensité de cette phase. Si $r_l = 0$ alors le Jiiter n'a aucune incidence. Voici la modification que l'on réalise sur $S_l$ :
@@ -147,7 +147,7 @@ Finalement notre but est d'obtenir :
 $$ S_l[p] \gets \argmin_{ u \in \{ 0, \dots, m-1 \}^2 } \| N_{S_l}^{(5)}(p) - N_{E_l}^{(5)}(u) \|_2 $$
 Mais un algorithme naïf pour faire cela aurait une complexité en $\mathcal{O}(m^4)$ avec un constante multiplicative conséquente puisqu'on calcule des distances dans un espace de dimension 25. Ce n'est pas souhaitable, c'est pourquoi on restreint $u$ à un bien plus petit sous-ensemble de $\{ 0, \dots, m-1 \}^2$.
 
-Pour restreindre l'ensemble des valeurs possibles, on remarque dans un premier temps que si on applique le pas de Jitter on a l'égalité suivante :
+Pour restreindre l'ensemble des valeurs possibles, on remarque dans un premier temps que si on n'applique pas de Jitter on a l'égalité suivante :
 $$ S_l[p] = S_l \left[ p + \Delta \right] - h_l \Delta $$
 On va donc dans un premier temps restreindre $u$ à l'ensemble des valeurs $S_l \left[ p + \Delta \right] - h_l \Delta$ pour $\Delta$ dans $\{ -1, 0, 1 \}^2$. Pour augmenter la taille de notre sous-ensemble et permettre plus de discontinuités dans notre map, on ajoute le plus proche voisin de chacune de ces valeurs. C'est à dire que l'on pré-calcule une coordonnée $C_1^l(u) \neq u$ telle que $ \| N_{E_l}^{(7)}(u) - N_{E_l}^{(7)}(C_1^l(u)) \|_2 $ est minimale pour chaque $u$. On pose aussi $C_0^l(u) = u$ et on pourrait aussi construire $C_
 2^l(u)$ comme étant le second plus proche voisin de $u$. L'ensemble $C^l(u)$ des plus proches voisins de $u$ est appelé ensemble de cohérence de $u$. Dans la pratique on ne calcule que le plus proche voisin car les calculs sont gourmands. On fait aussi en sorte que le plus proche voisin soit éloigné de $u$ dans le sens de la distance $\| u - C_1^l(u) \|_2$ qui ne porte pas sur les voisinages. Enfin pour les petites valeurs de $l$ on ne calcule pas la distance sur le voisinage $7 \times 7$ mais plutôt sur le voisinage $5 \times 5$ voire $3 \times 3$ si $m$ est faible. On obtient finalement :
